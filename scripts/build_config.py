@@ -93,6 +93,19 @@ class ConfigBuilder:
             shutil.copy(loading_img, drawable_dir / "loading.png")
             print(f"Copied: {loading_img} -> {drawable_dir / 'loading.png'}")
         
+        # 复制应用图标到mipmap目录
+        icon_img = app_assets_dir / self.config.get('iconImage', 'icon.png')
+        if icon_img.exists():
+            # 为不同密度创建mipmap目录
+            mipmap_densities = ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi']
+            for density in mipmap_densities:
+                mipmap_dir = android_res_dir / f"mipmap-{density}"
+                mipmap_dir.mkdir(parents=True, exist_ok=True)
+                # 复制图标和圆形图标
+                shutil.copy(icon_img, mipmap_dir / "ic_launcher.png")
+                shutil.copy(icon_img, mipmap_dir / "ic_launcher_round.png")
+            print(f"Copied: {icon_img} -> mipmap directories")
+        
         # 复制iOS资源
         ios_assets_dir = self.ios_dir / "WebViewApp" / "Assets.xcassets"
         
