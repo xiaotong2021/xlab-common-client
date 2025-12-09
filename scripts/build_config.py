@@ -168,7 +168,7 @@ class ConfigBuilder:
             '__STORE_PASSWORD__': self.config.get('androidStorePassword', 'PLACEHOLDER_STORE_PASSWORD'),
             '__KEY_ALIAS__': self.config.get('androidKeyAlias', 'PLACEHOLDER_KEY_ALIAS'),
             '__KEY_PASSWORD__': self.config.get('androidKeyPassword', 'PLACEHOLDER_KEY_PASSWORD'),
-            '__SIGNING_CONFIG__': 'signingConfig signingConfigs.release' if not is_debug else 'signingConfig null',
+            '__SIGNING_CONFIG__': 'signingConfig signingConfigs.release' if not is_debug else '',
             '__USES_CLEARTEXT_TRAFFIC__': 'true' if not self.parse_boolean(self.config.get('enableHttps', 'true')) else 'false',
             
             # WebView配置
