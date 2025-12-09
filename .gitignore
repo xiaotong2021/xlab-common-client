@@ -1,0 +1,76 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Android
+android/local.properties
+android/.gradle/
+android/build/
+android/app/build/
+android/captures/
+android/.externalNativeBuild/
+android/.cxx/
+android/*.iml
+android/*.jks
+android/*.keystore
+android/*.apk
+android/*.ap_
+android/*.aab
+
+# iOS
+ios/build/
+ios/DerivedData/
+ios/*.xcworkspace/xcuserdata/
+ios/*.xcodeproj/xcuserdata/
+ios/*.xcodeproj/project.xcworkspace/xcuserdata/
+ios/*.ipa
+ios/*.dSYM.zip
+ios/*.dSYM
+ios/Pods/
+ios/Podfile.lock
+ios/*.mobileprovision
+ios/*.p12
+ios/*.cer
+ios/exportOptions.plist
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Build artifacts
+*.log
+*.tmp
+*.temp
+/dist/
+/output/
+
+# Secrets and certificates
+*.jks
+*.keystore
+*.p12
+*.cer
+*.mobileprovision
+secrets/
+
+# Generated files
+.base64
+
+# OS generated files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
