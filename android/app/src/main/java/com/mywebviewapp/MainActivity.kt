@@ -41,10 +41,8 @@ class MainActivity : AppCompatActivity() {
         // 缓存设置
         if (AppConfig.ENABLE_CACHE) {
             webSettings.cacheMode = WebSettings.LOAD_DEFAULT
-            webSettings.setAppCacheEnabled(true)
         } else {
             webSettings.cacheMode = WebSettings.LOAD_NO_CACHE
-            webSettings.setAppCacheEnabled(false)
         }
 
         // 文件访问
@@ -71,7 +69,7 @@ class MainActivity : AppCompatActivity() {
         // 其他设置
         webSettings.loadWithOverviewMode = true
         webSettings.useWideViewPort = true
-        webSettings.supportMultipleWindows = AppConfig.SUPPORT_MULTIPLE_WINDOWS
+        webSettings.setSupportMultipleWindows(AppConfig.SUPPORT_MULTIPLE_WINDOWS)
 
         // 调试模式
         if (AppConfig.ENABLE_DEBUGGING) {
