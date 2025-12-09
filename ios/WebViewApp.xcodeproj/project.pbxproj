@@ -7,29 +7,29 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 002 /* AppDelegate.swift */; };
-		003 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 004 /* SceneDelegate.swift */; };
-		005 /* LoadingViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 006 /* LoadingViewController.swift */; };
-		007 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 008 /* MainViewController.swift */; };
-		009 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 010 /* AppConfig.swift */; };
-		011 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 012 /* Assets.xcassets */; };
-		013 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 014 /* LaunchScreen.storyboard */; };
+		8D1107310486CEB800E47090 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1107320486CEB800E47091 /* AppDelegate.swift */; };
+		8D1107330486CEB800E47092 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1107340486CEB800E47093 /* SceneDelegate.swift */; };
+		8D1107350486CEB800E47094 /* LoadingViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1107360486CEB800E47095 /* LoadingViewController.swift */; };
+		8D1107370486CEB800E47096 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1107380486CEB800E47097 /* MainViewController.swift */; };
+		8D1107390486CEB800E47098 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D11073A0486CEB800E47099 /* AppConfig.swift */; };
+		8D11073B0486CEB800E4709A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8D11073C0486CEB800E4709B /* Assets.xcassets */; };
+		8D11073D0486CEB800E4709C /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 8D11073E0486CEB800E4709D /* LaunchScreen.storyboard */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		002 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		004 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
-		006 /* LoadingViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingViewController.swift; sourceTree = "<group>"; };
-		008 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
-		010 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
-		012 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		014 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
-		015 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		016 /* WebViewApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WebViewApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8D1107320486CEB800E47091 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		8D1107340486CEB800E47093 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+		8D1107360486CEB800E47095 /* LoadingViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingViewController.swift; sourceTree = "<group>"; };
+		8D1107380486CEB800E47097 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
+		8D11073A0486CEB800E47099 /* AppConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfig.swift; sourceTree = "<group>"; };
+		8D11073C0486CEB800E4709B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		8D11073E0486CEB800E4709D /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		8D11073F0486CEB800E4709E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		8D1107400486CEB800E4709F /* WebViewApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WebViewApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		017 /* Frameworks */ = {
+		8D1107410486CEB800E470A0 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -39,33 +39,33 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		018 = {
+		8D1107420486CEB800E470A1 = {
 			isa = PBXGroup;
 			children = (
-				019 /* WebViewApp */,
-				020 /* Products */,
+				8D1107430486CEB800E470A2 /* WebViewApp */,
+				8D1107440486CEB800E470A3 /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		019 /* WebViewApp */ = {
+		8D1107430486CEB800E470A2 /* WebViewApp */ = {
 			isa = PBXGroup;
 			children = (
-				002 /* AppDelegate.swift */,
-				004 /* SceneDelegate.swift */,
-				006 /* LoadingViewController.swift */,
-				008 /* MainViewController.swift */,
-				010 /* AppConfig.swift */,
-				012 /* Assets.xcassets */,
-				014 /* LaunchScreen.storyboard */,
-				015 /* Info.plist */,
+				8D1107320486CEB800E47091 /* AppDelegate.swift */,
+				8D1107340486CEB800E47093 /* SceneDelegate.swift */,
+				8D1107360486CEB800E47095 /* LoadingViewController.swift */,
+				8D1107380486CEB800E47097 /* MainViewController.swift */,
+				8D11073A0486CEB800E47099 /* AppConfig.swift */,
+				8D11073C0486CEB800E4709B /* Assets.xcassets */,
+				8D11073E0486CEB800E4709D /* LaunchScreen.storyboard */,
+				8D11073F0486CEB800E4709E /* Info.plist */,
 			);
 			path = WebViewApp;
 			sourceTree = "<group>";
 		};
-		020 /* Products */ = {
+		8D1107440486CEB800E470A3 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				016 /* WebViewApp.app */,
+				8D1107400486CEB800E4709F /* WebViewApp.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -73,13 +73,13 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		021 /* WebViewApp */ = {
+		8D1107450486CEB800E470A4 /* WebViewApp */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 022 /* Build configuration list for PBXNativeTarget "WebViewApp" */;
+			buildConfigurationList = 8D1107460486CEB800E470A5 /* Build configuration list for PBXNativeTarget "WebViewApp" */;
 			buildPhases = (
-				023 /* Sources */,
-				017 /* Frameworks */,
-				024 /* Resources */,
+				8D1107470486CEB800E470A6 /* Sources */,
+				8D1107410486CEB800E470A0 /* Frameworks */,
+				8D1107480486CEB800E470A7 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -87,25 +87,25 @@
 			);
 			name = WebViewApp;
 			productName = WebViewApp;
-			productReference = 016 /* WebViewApp.app */;
+			productReference = 8D1107400486CEB800E4709F /* WebViewApp.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		025 /* Project object */ = {
+		8D1107490486CEB800E470A8 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1500;
 				LastUpgradeCheck = 1500;
 				TargetAttributes = {
-					021 = {
+					8D1107450486CEB800E470A4 = {
 						CreatedOnToolsVersion = 15.0;
 					};
 				};
 			};
-			buildConfigurationList = 026 /* Build configuration list for PBXProject "WebViewApp" */;
+			buildConfigurationList = 8D11074A0486CEB800E470A9 /* Build configuration list for PBXProject "WebViewApp" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -113,45 +113,45 @@
 				en,
 				Base,
 			);
-			mainGroup = 018;
-			productRefGroup = 020 /* Products */;
+			mainGroup = 8D1107420486CEB800E470A1;
+			productRefGroup = 8D1107440486CEB800E470A3 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				021 /* WebViewApp */,
+				8D1107450486CEB800E470A4 /* WebViewApp */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		024 /* Resources */ = {
+		8D1107480486CEB800E470A7 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				013 /* LaunchScreen.storyboard in Resources */,
-				011 /* Assets.xcassets in Resources */,
+				8D11073D0486CEB800E4709C /* LaunchScreen.storyboard in Resources */,
+				8D11073B0486CEB800E4709A /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		023 /* Sources */ = {
+		8D1107470486CEB800E470A6 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				007 /* MainViewController.swift in Sources */,
-				001 /* AppDelegate.swift in Sources */,
-				003 /* SceneDelegate.swift in Sources */,
-				005 /* LoadingViewController.swift in Sources */,
-				009 /* AppConfig.swift in Sources */,
+				8D1107370486CEB800E47096 /* MainViewController.swift in Sources */,
+				8D1107310486CEB800E47090 /* AppDelegate.swift in Sources */,
+				8D1107330486CEB800E47092 /* SceneDelegate.swift in Sources */,
+				8D1107350486CEB800E47094 /* LoadingViewController.swift in Sources */,
+				8D1107390486CEB800E47098 /* AppConfig.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
-		027 /* Debug */ = {
+		8D11074B0486CEB800E470AA /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -214,7 +214,7 @@
 			};
 			name = Debug;
 		};
-		028 /* Release */ = {
+		8D11074C0486CEB800E470AB /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -270,14 +270,14 @@
 			};
 			name = Release;
 		};
-		029 /* Debug */ = {
+		8D11074D0486CEB800E470AC /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ;
+				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = WebViewApp/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -298,7 +298,7 @@
 			};
 			name = Debug;
 		};
-		030 /* Release */ = {
+		8D11074E0486CEB800E470AD /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -306,7 +306,7 @@
 				CODE_SIGN_IDENTITY = "PLACEHOLDER_CERTIFICATE_NAME";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = ;
+				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = WebViewApp/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -331,25 +331,25 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		022 /* Build configuration list for PBXNativeTarget "WebViewApp" */ = {
+		8D1107460486CEB800E470A5 /* Build configuration list for PBXNativeTarget "WebViewApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				029 /* Debug */,
-				030 /* Release */,
+				8D11074D0486CEB800E470AC /* Debug */,
+				8D11074E0486CEB800E470AD /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		026 /* Build configuration list for PBXProject "WebViewApp" */ = {
+		8D11074A0486CEB800E470A9 /* Build configuration list for PBXProject "WebViewApp" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				027 /* Debug */,
-				028 /* Release */,
+				8D11074B0486CEB800E470AA /* Debug */,
+				8D11074C0486CEB800E470AB /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
-	rootObject = 025 /* Project object */;
+	rootObject = 8D1107490486CEB800E470A8 /* Project object */;
 }
