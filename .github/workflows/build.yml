@@ -111,9 +111,8 @@ jobs:
       - name: Upload Android artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: android-app
-          path: |
-            android/app/build/outputs/apk/**/*.apk
+          name: android-apk
+          path: android/app/build/outputs/apk/**/*.apk
 
   build-ios:
     name: Build iOS App
@@ -144,6 +143,28 @@ jobs:
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: 'latest-stable'
+
+      - name: Create exportOptions.plist (Release mode only)
+        if: needs.prepare.outputs.is_debug == 'false'
+        run: |
+          cat > ios/exportOptions.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>${{ secrets.IOS_EXPORT_METHOD || 'app-store' }}</string>
+              <key>teamID</key>
+              <string>${{ secrets.IOS_TEAM_ID }}</string>
+              <key>uploadBitcode</key>
+              <false/>
+              <key>uploadSymbols</key>
+              <true/>
+              <key>compileBitcode</key>
+              <false/>
+          </dict>
+          </plist>
+          EOF
 
       - name: Install certificates and provisioning profiles (Release mode only)
         if: needs.prepare.outputs.is_debug == 'false'
@@ -194,35 +215,19 @@ jobs:
             -exportPath build/output \
             -exportOptionsPlist exportOptions.plist
 
-      - name: Create exportOptions.plist (Release mode only)
-        if: needs.prepare.outputs.is_debug == 'false'
-        run: |
-          cat > ios/exportOptions.plist << EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>method</key>
-              <string>${{ secrets.IOS_EXPORT_METHOD || 'app-store' }}</string>
-              <key>teamID</key>
-              <string>${{ secrets.IOS_TEAM_ID }}</string>
-              <key>uploadBitcode</key>
-              <false/>
-              <key>uploadSymbols</key>
-              <true/>
-              <key>compileBitcode</key>
-              <false/>
-          </dict>
-          </plist>
-          EOF
-
-      - name: Upload iOS artifacts
+      - name: Upload iOS artifacts (Debug)
+        if: needs.prepare.outputs.is_debug == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: ios-app
-          path: |
-            ios/build/**/*.app
-            ios/build/output/*.ipa
+          name: ios-app-debug
+          path: ios/build/Build/Products/Debug-iphonesimulator/*.app
+
+      - name: Upload iOS artifacts (Release)
+        if: needs.prepare.outputs.is_debug == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: ios/build/output/*.ipa
 
   release:
     name: Create Release
@@ -240,15 +245,48 @@ jobs:
         if: needs.prepare.outputs.build_android == 'true'
         uses: actions/download-artifact@v4
         with:
-          name: android-app
+          name: android-apk
           path: ./artifacts/android
 
-      - name: Download iOS artifacts
-        if: needs.prepare.outputs.build_ios == 'true'
+      - name: Download iOS artifacts (Debug)
+        if: needs.prepare.outputs.build_ios == 'true' && needs.prepare.outputs.is_debug == 'true'
         uses: actions/download-artifact@v4
         with:
-          name: ios-app
+          name: ios-app-debug
           path: ./artifacts/ios
+
+      - name: Download iOS artifacts (Release)
+        if: needs.prepare.outputs.build_ios == 'true' && needs.prepare.outputs.is_debug == 'false'
+        uses: actions/download-artifact@v4
+        with:
+          name: ios-ipa
+          path: ./artifacts/ios
+
+      - name: Rename artifacts for release
+        run: |
+          # 重命名文件以避免冲突
+          if [ -d "./artifacts/android" ]; then
+            find ./artifacts/android -name "*.apk" -type f | while read file; do
+              dir=$(dirname "$file")
+              base=$(basename "$file")
+              # 添加时间戳避免冲突
+              mv "$file" "$dir/WebViewApp-${{ needs.prepare.outputs.app_version }}-${base}"
+            done
+          fi
+          
+          if [ -d "./artifacts/ios" ]; then
+            find ./artifacts/ios -name "*.ipa" -type f | while read file; do
+              dir=$(dirname "$file")
+              mv "$file" "$dir/WebViewApp-${{ needs.prepare.outputs.app_version }}.ipa"
+            done
+            # 压缩 .app 文件
+            find ./artifacts/ios -name "*.app" -type d | while read app; do
+              dir=$(dirname "$app")
+              appname=$(basename "$app" .app)
+              (cd "$dir" && zip -r "WebViewApp-${{ needs.prepare.outputs.app_version }}-Debug.zip" "$(basename "$app")")
+              rm -rf "$app"
+            done
+          fi
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -265,7 +303,7 @@ jobs:
             ### What's Included
             
             ${{ needs.prepare.outputs.build_android == 'true' && '- ✅ Android APK' || '- ❌ Android (disabled)' }}
-            ${{ needs.prepare.outputs.build_ios == 'true' && '- ✅ iOS IPA' || '- ❌ iOS (disabled)' }}
+            ${{ needs.prepare.outputs.build_ios == 'true' && '- ✅ iOS IPA/App' || '- ❌ iOS (disabled)' }}
             
             ### Installation
             
@@ -274,13 +312,19 @@ jobs:
             2. 在设备上启用"未知来源"安装
             3. 安装 APK
             
-            #### iOS
+            #### iOS (Debug)
+            1. 下载 ZIP 文件并解压
+            2. 使用 Xcode 或其他工具安装到模拟器
+            
+            #### iOS (Release)
             1. 下载 IPA 文件
-            2. 使用 Xcode 或其他工具安装到设备
+            2. 使用 Apple Configurator 或 TestFlight 安装到设备
             
             ---
             *This release was automatically generated by GitHub Actions*
           draft: false
           prerelease: false
           files: |
-            ./artifacts/**/*
+            ./artifacts/android/*.apk
+            ./artifacts/ios/*.ipa
+            ./artifacts/ios/*.zip
