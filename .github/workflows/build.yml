@@ -39,17 +39,20 @@ jobs:
           # 提取配置值
           BUILD_ANDROID=$(grep '^buildAndroid=' $CONFIG_FILE | cut -d'=' -f2 | tr '[:upper:]' '[:lower:]')
           BUILD_IOS=$(grep '^buildIOS=' $CONFIG_FILE | cut -d'=' -f2 | tr '[:upper:]' '[:lower:]')
-          IS_DEBUG=$(grep '^isDebug=' $CONFIG_FILE | cut -d'=' -f2 | tr '[:upper:]' '[:lower:]')
+          NEED_DEBUG=$(grep '^needDebug=' $CONFIG_FILE | cut -d'=' -f2 | tr '[:upper:]' '[:lower:]')
           APP_VERSION=$(grep '^appVersion=' $CONFIG_FILE | cut -d'=' -f2)
+          
+          # 设置默认值
+          NEED_DEBUG=${NEED_DEBUG:-false}
           
           echo "build_android=$BUILD_ANDROID" >> $GITHUB_OUTPUT
           echo "build_ios=$BUILD_IOS" >> $GITHUB_OUTPUT
-          echo "is_debug=$IS_DEBUG" >> $GITHUB_OUTPUT
+          echo "need_debug=$NEED_DEBUG" >> $GITHUB_OUTPUT
           echo "app_version=$APP_VERSION" >> $GITHUB_OUTPUT
           
           echo "Build Android: $BUILD_ANDROID"
           echo "Build iOS: $BUILD_IOS"
-          echo "Is Debug: $IS_DEBUG"
+          echo "Need Debug: $NEED_DEBUG"
           echo "App Version: $APP_VERSION"
 
   build-android:
@@ -88,19 +91,17 @@ jobs:
         run: chmod +x android/gradlew
         working-directory: ./
 
-      - name: Decode and create keystore (Release mode only)
-        if: needs.prepare.outputs.is_debug == 'false'
+      - name: Decode and create keystore
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/${{ secrets.ANDROID_KEYSTORE_FILE || 'devdroid.jks' }}
         working-directory: ./
 
       - name: Build Debug APK
-        if: needs.prepare.outputs.is_debug == 'true'
+        if: needs.prepare.outputs.need_debug == 'true'
         run: ./gradlew assembleDebug
         working-directory: ./android
 
       - name: Build Release APK
-        if: needs.prepare.outputs.is_debug == 'false'
         run: ./gradlew assembleRelease
         working-directory: ./android
         env:
@@ -109,15 +110,14 @@ jobs:
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
-      - name: Upload Android artifacts (Debug)
-        if: needs.prepare.outputs.is_debug == 'true'
+      - name: Upload Android Debug APK
+        if: needs.prepare.outputs.need_debug == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: android-apk-debug
           path: android/app/build/outputs/apk/debug/*.apk
 
-      - name: Upload Android artifacts (Release)
-        if: needs.prepare.outputs.is_debug == 'false'
+      - name: Upload Android Release APK
         uses: actions/upload-artifact@v4
         with:
           name: android-apk-release
@@ -153,14 +153,13 @@ jobs:
         with:
           xcode-version: 'latest-stable'
 
-      - name: Create exportOptions.plist (Release mode only)
-        if: needs.prepare.outputs.is_debug == 'false'
+      - name: Create exportOptions.plist placeholder
         run: |
           # exportOptions.plist 将在证书安装后创建
           echo "exportOptions.plist will be created after certificate installation"
 
-      - name: Install certificates and provisioning profiles (Release mode only)
-        if: needs.prepare.outputs.is_debug == 'false'
+      - name: Install certificates and provisioning profiles
+
         run: |
           # 创建临时keychain
           security create-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
@@ -241,28 +240,27 @@ jobs:
           cat ios/exportOptions.plist
 
       - name: Build iOS app (Debug)
-        if: needs.prepare.outputs.is_debug == 'true'
+        if: needs.prepare.outputs.need_debug == 'true'
         run: |
           cd ios
           xcodebuild -project WebViewApp.xcodeproj \
             -scheme WebViewApp \
             -configuration Debug \
             -sdk iphonesimulator \
-            -derivedDataPath build \
+            -derivedDataPath build-debug \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
 
       - name: Build iOS app (Release)
-        if: needs.prepare.outputs.is_debug == 'false'
         run: |
           cd ios
           xcodebuild -project WebViewApp.xcodeproj \
             -scheme WebViewApp \
             -configuration Release \
             -sdk iphoneos \
-            -derivedDataPath build \
-            -archivePath build/WebViewApp.xcarchive \
+            -derivedDataPath build-release \
+            -archivePath build-release/WebViewApp.xcarchive \
             -allowProvisioningUpdates \
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM="${{ secrets.IOS_TEAM_ID }}" \
@@ -272,24 +270,23 @@ jobs:
           
           # 导出IPA
           xcodebuild -exportArchive \
-            -archivePath build/WebViewApp.xcarchive \
-            -exportPath build/output \
+            -archivePath build-release/WebViewApp.xcarchive \
+            -exportPath build-release/output \
             -exportOptionsPlist exportOptions.plist \
             -allowProvisioningUpdates
 
-      - name: Upload iOS artifacts (Debug)
-        if: needs.prepare.outputs.is_debug == 'true'
+      - name: Upload iOS Debug App
+        if: needs.prepare.outputs.need_debug == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: ios-app-debug
-          path: ios/build/Build/Products/Debug-iphonesimulator/*.app
+          path: ios/build-debug/Build/Products/Debug-iphonesimulator/*.app
 
-      - name: Upload iOS artifacts (Release)
-        if: needs.prepare.outputs.is_debug == 'false'
+      - name: Upload iOS Release IPA
         uses: actions/upload-artifact@v4
         with:
-          name: ios-ipa
-          path: ios/build/output/*.ipa
+          name: ios-ipa-release
+          path: ios/build-release/output/*.ipa
 
   release:
     name: Create Release
@@ -303,26 +300,35 @@ jobs:
       contents: write
 
     steps:
-      - name: Download Android artifacts
+      - name: Download Android Debug APK
+        if: needs.prepare.outputs.build_android == 'true' && needs.prepare.outputs.need_debug == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: android-apk-debug
+          path: ./artifacts/android/debug
+        continue-on-error: true
+
+      - name: Download Android Release APK
         if: needs.prepare.outputs.build_android == 'true'
         uses: actions/download-artifact@v4
         with:
-          name: android-apk
-          path: ./artifacts/android
+          name: android-apk-release
+          path: ./artifacts/android/release
 
-      - name: Download iOS artifacts (Debug)
-        if: needs.prepare.outputs.build_ios == 'true' && needs.prepare.outputs.is_debug == 'true'
+      - name: Download iOS Debug App
+        if: needs.prepare.outputs.build_ios == 'true' && needs.prepare.outputs.need_debug == 'true'
         uses: actions/download-artifact@v4
         with:
           name: ios-app-debug
-          path: ./artifacts/ios
+          path: ./artifacts/ios/debug
+        continue-on-error: true
 
-      - name: Download iOS artifacts (Release)
-        if: needs.prepare.outputs.build_ios == 'true' && needs.prepare.outputs.is_debug == 'false'
+      - name: Download iOS Release IPA
+        if: needs.prepare.outputs.build_ios == 'true'
         uses: actions/download-artifact@v4
         with:
-          name: ios-ipa
-          path: ./artifacts/ios
+          name: ios-ipa-release
+          path: ./artifacts/ios/release
 
       - name: Rename artifacts for release
         run: |
@@ -383,7 +389,7 @@ jobs:
             ## WebView App Release ${{ github.ref_name }}
             
             **Version**: ${{ needs.prepare.outputs.app_version }}
-            **Build Mode**: ${{ needs.prepare.outputs.is_debug == 'true' && 'Debug' || 'Release' }}
+            **Build Mode**: ${{ needs.prepare.outputs.need_debug == 'true' && 'Debug + Release' || 'Release Only' }}
             
             ### What's Included
             
