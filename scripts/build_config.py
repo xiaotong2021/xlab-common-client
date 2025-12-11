@@ -140,6 +140,33 @@ class ConfigBuilder:
   }
 }''')
             print(f"Copied: {loading_img} -> {loading_imageset / 'loading.png'}")
+        
+        # 复制应用图标到AppIcon.appiconset
+        if icon_img.exists():
+            appicon_dir = ios_assets_dir / "AppIcon.appiconset"
+            appicon_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 复制图标
+            shutil.copy(icon_img, appicon_dir / "AppIcon.png")
+            
+            # 创建/更新 Contents.json
+            contents_json = appicon_dir / "Contents.json"
+            with open(contents_json, 'w', encoding='utf-8') as f:
+                f.write('''{
+  "images" : [
+    {
+      "filename" : "AppIcon.png",
+      "idiom" : "universal",
+      "platform" : "ios",
+      "size" : "1024x1024"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}''')
+            print(f"Copied: {icon_img} -> {appicon_dir / 'AppIcon.png'}")
     
     def configure_android(self, app_name):
         """配置Android项目"""

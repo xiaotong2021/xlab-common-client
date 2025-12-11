@@ -11,10 +11,12 @@ CONFIG_FILE="assets/app1/app.cfg"
 if [ -f "$CONFIG_FILE" ]; then
     echo "✅ app.cfg found"
     APP_ID=$(grep '^appId=' "$CONFIG_FILE" | cut -d'=' -f2)
+    APP_DISPLAY_NAME=$(grep '^appDisplayName=' "$CONFIG_FILE" | cut -d'=' -f2)
     LOAD_URL=$(grep '^loadUrl=' "$CONFIG_FILE" | cut -d'=' -f2)
     NEED_DEBUG=$(grep '^needDebug=' "$CONFIG_FILE" | cut -d'=' -f2)
     
     echo "   App ID: $APP_ID"
+    echo "   App Display Name: $APP_DISPLAY_NAME"
     echo "   Load URL: $LOAD_URL"
     echo "   Need Debug: $NEED_DEBUG"
 else
@@ -65,8 +67,38 @@ fi
 
 echo ""
 
+# 检查 Android 资源文件
+echo "3. Checking Android resources..."
+STRINGS_XML="android/app/src/main/res/values/strings.xml"
+
+if [ -f "$STRINGS_XML" ]; then
+    echo "✅ strings.xml found"
+    
+    # 检查应用名称
+    APP_NAME_LINE=$(grep 'name="app_name"' "$STRINGS_XML")
+    if [[ "$APP_NAME_LINE" == *"__APP_DISPLAY_NAME__"* ]]; then
+        echo "   ❌ Contains placeholder: __APP_DISPLAY_NAME__"
+    elif [[ "$APP_NAME_LINE" == *"$APP_DISPLAY_NAME"* ]]; then
+        echo "   ✅ App name correct: $APP_DISPLAY_NAME"
+    else
+        echo "   ⚠️  App name: $APP_NAME_LINE"
+    fi
+else
+    echo "❌ strings.xml not found"
+fi
+
+# 检查 Android 图标
+ICON_CHECK="android/app/src/main/res/mipmap-xhdpi/ic_launcher.png"
+if [ -f "$ICON_CHECK" ]; then
+    echo "✅ Android icon found (mipmap-xhdpi)"
+else
+    echo "⚠️  Android icon not found in mipmap-xhdpi"
+fi
+
+echo ""
+
 # 检查 iOS 文件
-echo "3. Checking iOS files..."
+echo "4. Checking iOS files..."
 IOS_CONFIG="ios/WebViewApp/AppConfig.swift"
 
 if [ -f "$IOS_CONFIG" ]; then
@@ -83,6 +115,32 @@ if [ -f "$IOS_CONFIG" ]; then
     fi
 else
     echo "❌ AppConfig.swift not found"
+fi
+
+# 检查 iOS Info.plist
+INFO_PLIST="ios/WebViewApp/Info.plist"
+if [ -f "$INFO_PLIST" ]; then
+    echo "✅ Info.plist found"
+    
+    # 检查应用名称
+    DISPLAY_NAME_LINE=$(grep -A1 'CFBundleDisplayName' "$INFO_PLIST" | tail -1)
+    if [[ "$DISPLAY_NAME_LINE" == *"__APP_DISPLAY_NAME__"* ]]; then
+        echo "   ❌ Contains placeholder: __APP_DISPLAY_NAME__"
+    elif [[ "$DISPLAY_NAME_LINE" == *"$APP_DISPLAY_NAME"* ]]; then
+        echo "   ✅ Display name correct: $APP_DISPLAY_NAME"
+    else
+        echo "   ⚠️  Display name: $DISPLAY_NAME_LINE"
+    fi
+else
+    echo "❌ Info.plist not found"
+fi
+
+# 检查 iOS 图标
+IOS_ICON="ios/WebViewApp/Assets.xcassets/AppIcon.appiconset/AppIcon.png"
+if [ -f "$IOS_ICON" ]; then
+    echo "✅ iOS icon found (AppIcon.appiconset)"
+else
+    echo "⚠️  iOS icon not found in AppIcon.appiconset"
 fi
 
 echo ""
