@@ -76,6 +76,10 @@ jobs:
         with:
           python-version: '3.x'
 
+      - name: Install Python dependencies
+        run: |
+          pip install Pillow
+
       - name: Configure project
         run: |
           python3 scripts/build_config.py ${{ github.workspace }}
@@ -152,6 +156,10 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '3.x'
+
+      - name: Install Python dependencies
+        run: |
+          pip install Pillow
 
       - name: Configure project
         run: |

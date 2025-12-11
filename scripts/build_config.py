@@ -10,6 +10,13 @@ import re
 import shutil
 from pathlib import Path
 
+try:
+    from PIL import Image
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
+    print("Warning: PIL/Pillow not available. Icon resizing will be skipped.")
+
 
 class ConfigBuilder:
     def __init__(self, workspace_root):
@@ -146,8 +153,40 @@ class ConfigBuilder:
             appicon_dir = ios_assets_dir / "AppIcon.appiconset"
             appicon_dir.mkdir(parents=True, exist_ok=True)
             
-            # 复制图标
-            shutil.copy(icon_img, appicon_dir / "AppIcon.png")
+            target_icon = appicon_dir / "AppIcon.png"
+            
+            # iOS 要求图标必须是 1024x1024
+            if PIL_AVAILABLE:
+                try:
+                    img = Image.open(icon_img)
+                    # 转换为 RGB（移除透明通道，iOS 要求不透明）
+                    if img.mode in ('RGBA', 'LA', 'P'):
+                        # 创建白色背景
+                        background = Image.new('RGB', img.size, (255, 255, 255))
+                        if img.mode == 'P':
+                            img = img.convert('RGBA')
+                        background.paste(img, mask=img.split()[-1] if img.mode in ('RGBA', 'LA') else None)
+                        img = background
+                    elif img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    
+                    # 调整尺寸为 1024x1024
+                    if img.size != (1024, 1024):
+                        print(f"  Resizing icon from {img.size} to (1024, 1024)")
+                        img = img.resize((1024, 1024), Image.Resampling.LANCZOS)
+                    
+                    # 保存
+                    img.save(target_icon, 'PNG', quality=100)
+                    print(f"Copied and resized: {icon_img} -> {target_icon} (1024x1024, RGB)")
+                except Exception as e:
+                    print(f"Warning: Failed to process icon with PIL: {e}")
+                    print(f"  Falling back to direct copy")
+                    shutil.copy(icon_img, target_icon)
+            else:
+                # 没有 PIL，直接复制（可能会有尺寸问题）
+                shutil.copy(icon_img, target_icon)
+                print(f"Warning: Copied icon without resizing (PIL not available)")
+                print(f"  Please ensure {icon_img} is exactly 1024x1024 and RGB format")
             
             # 创建/更新 Contents.json
             contents_json = appicon_dir / "Contents.json"
@@ -166,7 +205,7 @@ class ConfigBuilder:
     "version" : 1
   }
 }''')
-            print(f"Copied: {icon_img} -> {appicon_dir / 'AppIcon.png'}")
+            print(f"Created: {contents_json}")
     
     def configure_android(self, app_name):
         """配置Android项目"""
