@@ -147,24 +147,8 @@ jobs:
       - name: Create exportOptions.plist (Release mode only)
         if: needs.prepare.outputs.is_debug == 'false'
         run: |
-          cat > ios/exportOptions.plist << EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>method</key>
-              <string>${{ secrets.IOS_EXPORT_METHOD || 'app-store' }}</string>
-              <key>teamID</key>
-              <string>${{ secrets.IOS_TEAM_ID }}</string>
-              <key>uploadBitcode</key>
-              <false/>
-              <key>uploadSymbols</key>
-              <true/>
-              <key>compileBitcode</key>
-              <false/>
-          </dict>
-          </plist>
-          EOF
+          # exportOptions.plist 将在证书安装后创建
+          echo "exportOptions.plist will be created after certificate installation"
 
       - name: Install certificates and provisioning profiles (Release mode only)
         if: needs.prepare.outputs.is_debug == 'false'
@@ -189,6 +173,11 @@ jobs:
           echo "PROFILE_UUID=$PROFILE_UUID" >> $GITHUB_ENV
           echo "Installed Profile UUID: $PROFILE_UUID"
           
+          # 获取 Bundle ID（从 Profile 中提取）
+          BUNDLE_ID=$(security cms -D -i profile.mobileprovision | plutil -extract Entitlements.application-identifier raw - | sed 's/.*\.//')
+          echo "BUNDLE_ID=$BUNDLE_ID" >> $GITHUB_ENV
+          echo "Bundle ID: $BUNDLE_ID"
+          
           # 复制 Profile 到正确的位置（使用 UUID 作为文件名）
           cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/${PROFILE_UUID}.mobileprovision
           
@@ -207,6 +196,38 @@ jobs:
             echo "CERT_IDENTITY=$CERT_IDENTITY" >> $GITHUB_ENV
             echo "Certificate Identity (iPhone): $CERT_IDENTITY"
           fi
+          
+          # 创建 exportOptions.plist（包含 provisioningProfiles）
+          cat > ios/exportOptions.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>${{ secrets.IOS_EXPORT_METHOD || 'app-store' }}</string>
+              <key>teamID</key>
+              <string>${{ secrets.IOS_TEAM_ID }}</string>
+              <key>uploadBitcode</key>
+              <false/>
+              <key>uploadSymbols</key>
+              <true/>
+              <key>compileBitcode</key>
+              <false/>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>signingCertificate</key>
+              <string>Apple Distribution</string>
+              <key>provisioningProfiles</key>
+              <dict>
+                  <key>${BUNDLE_ID}</key>
+                  <string>${PROFILE_UUID}</string>
+              </dict>
+          </dict>
+          </plist>
+          EOF
+          
+          echo "Created exportOptions.plist:"
+          cat ios/exportOptions.plist
 
       - name: Build iOS app (Debug)
         if: needs.prepare.outputs.is_debug == 'true'
