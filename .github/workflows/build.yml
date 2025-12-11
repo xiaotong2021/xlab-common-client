@@ -173,10 +173,12 @@ jobs:
           echo "PROFILE_UUID=$PROFILE_UUID" >> $GITHUB_ENV
           echo "Installed Profile UUID: $PROFILE_UUID"
           
-          # 获取 Bundle ID（从 Profile 中提取）
-          BUNDLE_ID=$(security cms -D -i profile.mobileprovision | plutil -extract Entitlements.application-identifier raw - | sed 's/.*\.//')
+          # 获取 Bundle ID（从 Profile 中提取，去掉 Team ID 前缀）
+          # application-identifier 格式: TEAMID.com.example.app
+          # 使用 sed 删除第一个点之前的内容（Team ID）
+          BUNDLE_ID=$(security cms -D -i profile.mobileprovision | plutil -extract Entitlements.application-identifier raw - | sed 's/^[^.]*\.//')
           echo "BUNDLE_ID=$BUNDLE_ID" >> $GITHUB_ENV
-          echo "Bundle ID: $BUNDLE_ID"
+          echo "Bundle ID from Profile: $BUNDLE_ID"
           
           # 复制 Profile 到正确的位置（使用 UUID 作为文件名）
           cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/${PROFILE_UUID}.mobileprovision
