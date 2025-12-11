@@ -182,18 +182,31 @@ jobs:
           
           # 安装provisioning profile
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          PROFILE_PATH=~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
-          echo "${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}" | base64 --decode > "$PROFILE_PATH"
+          echo "${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}" | base64 --decode > profile.mobileprovision
           
-          # 获取 Profile UUID
-          PROFILE_UUID=$(grep -a -A 1 'UUID' "$PROFILE_PATH" | grep -o '[-A-F0-9]\{36\}' | head -1)
+          # 获取 Profile UUID（使用 security 命令解析）
+          PROFILE_UUID=$(security cms -D -i profile.mobileprovision | plutil -extract UUID raw -)
           echo "PROFILE_UUID=$PROFILE_UUID" >> $GITHUB_ENV
           echo "Installed Profile UUID: $PROFILE_UUID"
           
-          # 获取证书身份
-          CERT_IDENTITY=$(security find-identity -v -p codesigning build.keychain | grep "Apple Distribution" | head -1 | grep -o '[A-F0-9]\{40\}')
+          # 复制 Profile 到正确的位置（使用 UUID 作为文件名）
+          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/${PROFILE_UUID}.mobileprovision
+          
+          # 列出所有可用的签名身份（用于调试）
+          echo "Available signing identities:"
+          security find-identity -v -p codesigning build.keychain
+          
+          # 获取证书身份（SHA-1 hash）
+          CERT_IDENTITY=$(security find-identity -v -p codesigning build.keychain | grep "Apple Distribution" | head -1 | awk '{print $2}')
           echo "CERT_IDENTITY=$CERT_IDENTITY" >> $GITHUB_ENV
           echo "Certificate Identity: $CERT_IDENTITY"
+          
+          # 如果没有找到 Apple Distribution，尝试查找 iPhone Distribution
+          if [ -z "$CERT_IDENTITY" ]; then
+            CERT_IDENTITY=$(security find-identity -v -p codesigning build.keychain | grep "iPhone Distribution" | head -1 | awk '{print $2}')
+            echo "CERT_IDENTITY=$CERT_IDENTITY" >> $GITHUB_ENV
+            echo "Certificate Identity (iPhone): $CERT_IDENTITY"
+          fi
 
       - name: Build iOS app (Debug)
         if: needs.prepare.outputs.is_debug == 'true'
