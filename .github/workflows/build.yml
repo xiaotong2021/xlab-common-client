@@ -104,15 +104,24 @@ jobs:
         run: ./gradlew assembleRelease
         working-directory: ./android
         env:
+          KEYSTORE_FILE: ${{ secrets.ANDROID_KEYSTORE_FILE || 'devdroid.jks' }}
           KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
-      - name: Upload Android artifacts
+      - name: Upload Android artifacts (Debug)
+        if: needs.prepare.outputs.is_debug == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: android-apk
-          path: android/app/build/outputs/apk/**/*.apk
+          name: android-apk-debug
+          path: android/app/build/outputs/apk/debug/*.apk
+
+      - name: Upload Android artifacts (Release)
+        if: needs.prepare.outputs.is_debug == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk-release
+          path: android/app/build/outputs/apk/release/*.apk
 
   build-ios:
     name: Build iOS App

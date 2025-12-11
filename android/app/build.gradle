@@ -19,10 +19,13 @@ android {
 
     signingConfigs {
         release {
-            storeFile file('devdroid.jks')
-            storePassword 'PLACEHOLDER_STORE_PASSWORD'
-            keyAlias 'PLACEHOLDER_KEY_ALIAS'
-            keyPassword 'PLACEHOLDER_KEY_PASSWORD'
+            // 从环境变量读取签名配置（CI/CD 环境）
+            // 或使用占位符（本地开发时会被 build_config.py 替换）
+            def keystoreFile = System.getenv("KEYSTORE_FILE") ?: "PLACEHOLDER_KEYSTORE_FILE"
+            storeFile file(keystoreFile)
+            storePassword System.getenv("KEYSTORE_PASSWORD") ?: "PLACEHOLDER_STORE_PASSWORD"
+            keyAlias System.getenv("KEY_ALIAS") ?: "PLACEHOLDER_KEY_ALIAS"
+            keyPassword System.getenv("KEY_PASSWORD") ?: "PLACEHOLDER_KEY_PASSWORD"
         }
     }
 
@@ -30,7 +33,10 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig null
+            // 只有在配置了有效的 keystore 时才使用签名
+            if (signingConfigs.release.storeFile?.exists()) {
+                signingConfig signingConfigs.release
+            }
         }
         debug {
             minifyEnabled false
