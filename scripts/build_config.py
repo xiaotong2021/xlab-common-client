@@ -235,6 +235,10 @@ class ConfigBuilder:
         is_debug = self.parse_boolean(self.config.get('isDebug', 'true'))
         team_id = self.config.get('iosTeamId', '')
         
+        # 清理 Team ID
+        if team_id == 'PLACEHOLDER_TEAM_ID' or not team_id:
+            team_id = ''
+        
         replacements = {
             '__APP_NAME__': self.config.get('appName', 'MyWebView'),
             '__APP_DISPLAY_NAME__': self.config.get('iosBundleDisplayName', self.config.get('appDisplayName', 'MyWebView')),
@@ -244,10 +248,7 @@ class ConfigBuilder:
             '__BUNDLE_ID__': self.config.get('iosBundleId', self.config.get('appId', 'com.mywebviewapp')),
             '__VERSION__': self.config.get('iosBundleVersion', self.config.get('appVersion', '1.0.0')),
             '__IOS_DEPLOYMENT_TARGET__': self.config.get('iosDeploymentTarget', '13.0'),
-            '__TEAM_ID__': team_id if team_id and team_id != 'PLACEHOLDER_TEAM_ID' else '',
-            '__CERTIFICATE_NAME__': self.config.get('iosCertificateName', ''),
-            '__PROVISIONING_PROFILE__': self.config.get('iosProvisioningProfile', ''),
-            '__CODE_SIGN_STYLE__': 'Manual' if not is_debug and team_id and team_id != 'PLACEHOLDER_TEAM_ID' else 'Automatic',
+            '__TEAM_ID__': team_id,
             '__ALLOWS_ARBITRARY_LOADS__': 'true' if not self.parse_boolean(self.config.get('enableHttps', 'true')) else 'false',
             
             # WebView配置 (与Android相同)
