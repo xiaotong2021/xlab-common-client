@@ -264,29 +264,52 @@ jobs:
 
       - name: Rename artifacts for release
         run: |
-          # 重命名文件以避免冲突
+          # 显示下载的文件结构（用于调试）
+          echo "=== Downloaded artifacts structure ==="
+          ls -lR ./artifacts/ || echo "No artifacts directory found"
+          
+          # 重命名 Android APK 文件
           if [ -d "./artifacts/android" ]; then
+            echo "=== Processing Android artifacts ==="
             find ./artifacts/android -name "*.apk" -type f | while read file; do
               dir=$(dirname "$file")
               base=$(basename "$file")
-              # 添加时间戳避免冲突
+              echo "Found APK: $file"
+              # 重命名为带版本号的文件名
               mv "$file" "$dir/WebViewApp-${{ needs.prepare.outputs.app_version }}-${base}"
+              echo "Renamed to: $dir/WebViewApp-${{ needs.prepare.outputs.app_version }}-${base}"
             done
+          else
+            echo "Warning: No Android artifacts found"
           fi
           
+          # 处理 iOS artifacts
           if [ -d "./artifacts/ios" ]; then
+            echo "=== Processing iOS artifacts ==="
+            # 处理 IPA 文件
             find ./artifacts/ios -name "*.ipa" -type f | while read file; do
               dir=$(dirname "$file")
+              echo "Found IPA: $file"
               mv "$file" "$dir/WebViewApp-${{ needs.prepare.outputs.app_version }}.ipa"
+              echo "Renamed to: $dir/WebViewApp-${{ needs.prepare.outputs.app_version }}.ipa"
             done
+            
             # 压缩 .app 文件
             find ./artifacts/ios -name "*.app" -type d | while read app; do
               dir=$(dirname "$app")
               appname=$(basename "$app" .app)
+              echo "Found APP: $app"
               (cd "$dir" && zip -r "WebViewApp-${{ needs.prepare.outputs.app_version }}-Debug.zip" "$(basename "$app")")
+              echo "Created ZIP: $dir/WebViewApp-${{ needs.prepare.outputs.app_version }}-Debug.zip"
               rm -rf "$app"
             done
+          else
+            echo "Warning: No iOS artifacts found"
           fi
+          
+          # 显示最终文件列表
+          echo "=== Final artifacts ==="
+          ls -lR ./artifacts/ || echo "No artifacts"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -325,6 +348,7 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            ./artifacts/android/*.apk
-            ./artifacts/ios/*.ipa
-            ./artifacts/ios/*.zip
+            ./artifacts/**/*.apk
+            ./artifacts/**/*.ipa
+            ./artifacts/**/*.zip
+          fail_on_unmatched_files: false
