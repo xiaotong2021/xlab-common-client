@@ -145,8 +145,6 @@ class ConfigBuilder:
         """配置Android项目"""
         print("\n=== Configuring Android ===")
         
-        # 准备替换映射
-        is_debug = self.parse_boolean(self.config.get('isDebug', 'true'))
         package_name = self.config.get('appId', 'com.mywebviewapp')
         package_path = package_name.replace('.', '/')
         
@@ -157,13 +155,19 @@ class ConfigBuilder:
         # 移动Kotlin文件到正确的包目录
         old_package_dir = self.android_dir / "app" / "src" / "main" / "java" / "com" / "mywebviewapp"
         if old_package_dir.exists() and old_package_dir != src_dir:
+            print(f"Moving Kotlin files from {old_package_dir} to {src_dir}")
             for kt_file in old_package_dir.glob("*.kt"):
-                shutil.move(str(kt_file), str(src_dir / kt_file.name))
+                dest_file = src_dir / kt_file.name
+                if dest_file.exists():
+                    dest_file.unlink()  # 删除已存在的文件
+                shutil.move(str(kt_file), str(dest_file))
+                print(f"  Moved: {kt_file.name}")
             # 删除旧目录
             try:
                 shutil.rmtree(old_package_dir.parent.parent)
-            except:
-                pass
+                print(f"  Removed old package directory")
+            except Exception as e:
+                print(f"  Warning: Could not remove old directory: {e}")
         
         replacements = {
             '__APP_ID__': package_name,
@@ -181,7 +185,6 @@ class ConfigBuilder:
             '__STORE_PASSWORD__': self.config.get('androidStorePassword', 'PLACEHOLDER_STORE_PASSWORD'),
             '__KEY_ALIAS__': self.config.get('androidKeyAlias', 'PLACEHOLDER_KEY_ALIAS'),
             '__KEY_PASSWORD__': self.config.get('androidKeyPassword', 'PLACEHOLDER_KEY_PASSWORD'),
-            '__SIGNING_CONFIG__': 'signingConfig signingConfigs.release' if not is_debug else '',
             '__USES_CLEARTEXT_TRAFFIC__': 'true' if not self.parse_boolean(self.config.get('enableHttps', 'true')) else 'false',
             
             # WebView配置
@@ -232,7 +235,6 @@ class ConfigBuilder:
         """配置iOS项目"""
         print("\n=== Configuring iOS ===")
         
-        is_debug = self.parse_boolean(self.config.get('isDebug', 'true'))
         team_id = self.config.get('iosTeamId', '')
         
         # 清理 Team ID

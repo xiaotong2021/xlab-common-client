@@ -1,4 +1,4 @@
-package com.mywebviewapp
+package __PACKAGE_NAME__
 
 import android.graphics.Bitmap
 import android.os.Bundle

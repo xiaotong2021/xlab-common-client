@@ -1,4 +1,4 @@
-package com.mywebviewapp
+package __PACKAGE_NAME__
 
 import android.content.Intent
 import android.graphics.Color

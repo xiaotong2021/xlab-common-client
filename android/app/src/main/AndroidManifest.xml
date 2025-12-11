@@ -10,11 +10,11 @@
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="MyWebView"
+        android:label="__APP_DISPLAY_NAME__"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.WebViewApp"
-        android:usesCleartextTraffic="false"
+        android:usesCleartextTraffic="__USES_CLEARTEXT_TRAFFIC__"
         tools:targetApi="31">
         
         <!-- Loading Activity -->
