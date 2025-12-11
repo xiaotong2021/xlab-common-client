@@ -182,7 +182,18 @@ jobs:
           
           # 安装provisioning profile
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          echo "${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
+          PROFILE_PATH=~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
+          echo "${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}" | base64 --decode > "$PROFILE_PATH"
+          
+          # 获取 Profile UUID
+          PROFILE_UUID=$(grep -a -A 1 'UUID' "$PROFILE_PATH" | grep -o '[-A-F0-9]\{36\}' | head -1)
+          echo "PROFILE_UUID=$PROFILE_UUID" >> $GITHUB_ENV
+          echo "Installed Profile UUID: $PROFILE_UUID"
+          
+          # 获取证书身份
+          CERT_IDENTITY=$(security find-identity -v -p codesigning build.keychain | grep "Apple Distribution" | head -1 | grep -o '[A-F0-9]\{40\}')
+          echo "CERT_IDENTITY=$CERT_IDENTITY" >> $GITHUB_ENV
+          echo "Certificate Identity: $CERT_IDENTITY"
 
       - name: Build iOS app (Debug)
         if: needs.prepare.outputs.is_debug == 'true'
@@ -207,13 +218,19 @@ jobs:
             -sdk iphoneos \
             -derivedDataPath build \
             -archivePath build/WebViewApp.xcarchive \
+            -allowProvisioningUpdates \
+            CODE_SIGN_STYLE=Manual \
+            DEVELOPMENT_TEAM="${{ secrets.IOS_TEAM_ID }}" \
+            CODE_SIGN_IDENTITY="${CERT_IDENTITY}" \
+            PROVISIONING_PROFILE_SPECIFIER="${PROFILE_UUID}" \
             archive
           
           # 导出IPA
           xcodebuild -exportArchive \
             -archivePath build/WebViewApp.xcarchive \
             -exportPath build/output \
-            -exportOptionsPlist exportOptions.plist
+            -exportOptionsPlist exportOptions.plist \
+            -allowProvisioningUpdates
 
       - name: Upload iOS artifacts (Debug)
         if: needs.prepare.outputs.is_debug == 'true'
