@@ -148,27 +148,7 @@ class ConfigBuilder:
         package_name = self.config.get('appId', 'com.mywebviewapp')
         package_path = package_name.replace('.', '/')
         
-        # 创建包目录
-        src_dir = self.android_dir / "app" / "src" / "main" / "java" / package_path
-        src_dir.mkdir(parents=True, exist_ok=True)
-        
-        # 移动Kotlin文件到正确的包目录
-        old_package_dir = self.android_dir / "app" / "src" / "main" / "java" / "com" / "mywebviewapp"
-        if old_package_dir.exists() and old_package_dir != src_dir:
-            print(f"Moving Kotlin files from {old_package_dir} to {src_dir}")
-            for kt_file in old_package_dir.glob("*.kt"):
-                dest_file = src_dir / kt_file.name
-                if dest_file.exists():
-                    dest_file.unlink()  # 删除已存在的文件
-                shutil.move(str(kt_file), str(dest_file))
-                print(f"  Moved: {kt_file.name}")
-            # 删除旧目录
-            try:
-                shutil.rmtree(old_package_dir.parent.parent)
-                print(f"  Removed old package directory")
-            except Exception as e:
-                print(f"  Warning: Could not remove old directory: {e}")
-        
+        # 准备替换映射
         replacements = {
             '__APP_ID__': package_name,
             '__PACKAGE_NAME__': package_name,
@@ -218,15 +198,46 @@ class ConfigBuilder:
             '__SUPPORT_MULTIPLE_WINDOWS__': str(self.parse_boolean(self.config.get('supportMultipleWindows', 'false'))).lower(),
         }
         
-        # 替换文件
+        # 先替换旧位置的 Kotlin 文件（在移动之前）
+        old_package_dir = self.android_dir / "app" / "src" / "main" / "java" / "com" / "mywebviewapp"
+        if old_package_dir.exists():
+            print(f"Replacing placeholders in Kotlin files at: {old_package_dir}")
+            for kt_file in old_package_dir.glob("*.kt"):
+                print(f"  Processing: {kt_file.name}")
+                self.replace_file_content(kt_file, replacements)
+        
+        # 创建目标包目录
+        src_dir = self.android_dir / "app" / "src" / "main" / "java" / package_path
+        src_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 移动Kotlin文件到正确的包目录
+        if old_package_dir.exists() and old_package_dir != src_dir:
+            print(f"Moving Kotlin files from {old_package_dir} to {src_dir}")
+            for kt_file in old_package_dir.glob("*.kt"):
+                dest_file = src_dir / kt_file.name
+                if dest_file.exists():
+                    dest_file.unlink()  # 删除已存在的文件
+                shutil.move(str(kt_file), str(dest_file))
+                print(f"  Moved: {kt_file.name}")
+            # 删除旧目录树
+            try:
+                # 从 com 开始删除整个目录树
+                com_dir = self.android_dir / "app" / "src" / "main" / "java" / "com"
+                if com_dir.exists():
+                    # 只删除 mywebviewapp 包
+                    mywebviewapp_dir = com_dir / "mywebviewapp"
+                    if mywebviewapp_dir.exists() and not mywebviewapp_dir.exists():
+                        shutil.rmtree(old_package_dir.parent.parent)
+                        print(f"  Removed old package directory")
+            except Exception as e:
+                print(f"  Warning: Could not remove old directory: {e}")
+        
+        # 替换其他文件
         files_to_replace = [
             self.android_dir / "app" / "build.gradle",
             self.android_dir / "app" / "src" / "main" / "AndroidManifest.xml",
             self.android_dir / "app" / "src" / "main" / "res" / "values" / "strings.xml",
         ]
-        
-        for kt_file in src_dir.glob("*.kt"):
-            files_to_replace.append(kt_file)
         
         for file_path in files_to_replace:
             self.replace_file_content(file_path, replacements)

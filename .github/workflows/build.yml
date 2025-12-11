@@ -80,6 +80,11 @@ jobs:
         run: |
           python3 scripts/build_config.py ${{ github.workspace }}
 
+      - name: Verify build configuration
+        run: |
+          chmod +x scripts/verify_build.sh
+          bash scripts/verify_build.sh
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -90,6 +95,10 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x android/gradlew
         working-directory: ./
+
+      - name: Clean Android build
+        run: ./gradlew clean
+        working-directory: ./android
 
       - name: Decode and create keystore
         run: |
@@ -147,6 +156,11 @@ jobs:
       - name: Configure project
         run: |
           python3 scripts/build_config.py ${{ github.workspace }}
+
+      - name: Verify build configuration (iOS)
+        run: |
+          chmod +x scripts/verify_build.sh
+          bash scripts/verify_build.sh
 
       - name: Setup Xcode
         uses: maxim-lobanov/setup-xcode@v1
