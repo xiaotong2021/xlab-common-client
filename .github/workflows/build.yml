@@ -12,7 +12,7 @@ jobs:
     outputs:
       build_android: ${{ steps.config.outputs.build_android }}
       build_ios: ${{ steps.config.outputs.build_ios }}
-      is_debug: ${{ steps.config.outputs.is_debug }}
+      need_debug: ${{ steps.config.outputs.need_debug }}
       app_version: ${{ steps.config.outputs.app_version }}
 
     steps:
