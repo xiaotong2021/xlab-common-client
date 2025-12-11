@@ -233,20 +233,21 @@ class ConfigBuilder:
         print("\n=== Configuring iOS ===")
         
         is_debug = self.parse_boolean(self.config.get('isDebug', 'true'))
+        team_id = self.config.get('iosTeamId', '')
         
         replacements = {
             '__APP_NAME__': self.config.get('appName', 'MyWebView'),
-            '__APP_DISPLAY_NAME__': self.config.get('iosBundle DisplayName', self.config.get('appDisplayName', 'MyWebView')),
+            '__APP_DISPLAY_NAME__': self.config.get('iosBundleDisplayName', self.config.get('appDisplayName', 'MyWebView')),
             '__APP_ID__': self.config.get('appId', 'com.mywebviewapp'),
             '__APP_VERSION__': self.config.get('appVersion', '1.0.0'),
             '__BUILD_NUMBER__': self.config.get('iosBuildNumber', self.config.get('buildNumber', '1')),
             '__BUNDLE_ID__': self.config.get('iosBundleId', self.config.get('appId', 'com.mywebviewapp')),
             '__VERSION__': self.config.get('iosBundleVersion', self.config.get('appVersion', '1.0.0')),
             '__IOS_DEPLOYMENT_TARGET__': self.config.get('iosDeploymentTarget', '13.0'),
-            '__TEAM_ID__': self.config.get('iosTeamId', 'PLACEHOLDER_TEAM_ID') if not is_debug else '',
-            '__CERTIFICATE_NAME__': self.config.get('iosCertificateName', 'PLACEHOLDER_CERTIFICATE_NAME'),
-            '__PROVISIONING_PROFILE__': self.config.get('iosProvisioningProfile', 'PLACEHOLDER_PROVISIONING_PROFILE'),
-            '__CODE_SIGN_STYLE__': 'Manual' if not is_debug else 'Automatic',
+            '__TEAM_ID__': team_id if team_id and team_id != 'PLACEHOLDER_TEAM_ID' else '',
+            '__CERTIFICATE_NAME__': self.config.get('iosCertificateName', ''),
+            '__PROVISIONING_PROFILE__': self.config.get('iosProvisioningProfile', ''),
+            '__CODE_SIGN_STYLE__': 'Manual' if not is_debug and team_id and team_id != 'PLACEHOLDER_TEAM_ID' else 'Automatic',
             '__ALLOWS_ARBITRARY_LOADS__': 'true' if not self.parse_boolean(self.config.get('enableHttps', 'true')) else 'false',
             
             # WebView配置 (与Android相同)
