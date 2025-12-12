@@ -8,6 +8,9 @@ import os
 import sys
 import re
 import shutil
+import urllib.request
+import urllib.parse
+import tempfile
 from pathlib import Path
 
 try:
@@ -85,6 +88,63 @@ class ConfigBuilder:
         
         print(f"Updated: {file_path}")
     
+    def download_resource(self, url, filename):
+        """从网络下载资源文件到临时目录"""
+        try:
+            print(f"Downloading: {url}")
+            
+            # 创建临时目录
+            temp_dir = Path(tempfile.gettempdir()) / "xlab_resources"
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 下载文件
+            temp_file = temp_dir / filename
+            
+            # 添加 User-Agent 避免某些服务器拒绝请求
+            req = urllib.request.Request(
+                url,
+                headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'}
+            )
+            
+            with urllib.request.urlopen(req, timeout=30) as response:
+                with open(temp_file, 'wb') as out_file:
+                    out_file.write(response.read())
+            
+            print(f"Downloaded: {url} -> {temp_file}")
+            return temp_file
+            
+        except Exception as e:
+            print(f"Error downloading {url}: {e}")
+            return None
+    
+    def get_resource_path(self, app_name, resource_config_value):
+        """获取资源文件路径，支持本地路径和 HTTP(S) URL"""
+        # 检查是否是 URL
+        if resource_config_value.startswith('http://') or resource_config_value.startswith('https://'):
+            # 从 URL 中提取文件名
+            parsed_url = urllib.parse.urlparse(resource_config_value)
+            filename = os.path.basename(parsed_url.path)
+            
+            # 如果没有文件名或扩展名，使用默认名称
+            if not filename or '.' not in filename:
+                # 根据配置项猜测文件类型
+                if 'icon' in resource_config_value.lower():
+                    filename = 'icon.png'
+                elif 'loading' in resource_config_value.lower():
+                    filename = 'loading.png'
+                elif 'splash' in resource_config_value.lower():
+                    filename = 'splash.png'
+                else:
+                    filename = 'resource.png'
+            
+            # 下载文件
+            downloaded_file = self.download_resource(resource_config_value, filename)
+            return downloaded_file if downloaded_file else None
+        else:
+            # 本地文件路径
+            local_path = self.assets_dir / app_name / resource_config_value
+            return local_path if local_path.exists() else None
+    
     def copy_resources(self, app_name):
         """复制资源文件到项目目录"""
         app_assets_dir = self.assets_dir / app_name
@@ -92,17 +152,23 @@ class ConfigBuilder:
         # 复制Android资源
         android_res_dir = self.android_dir / "app" / "src" / "main" / "res"
         
-        # 复制loading图片到drawable
-        loading_img = app_assets_dir / self.config.get('loadingImage', 'loading.png')
-        if loading_img.exists():
+        # 获取 loading 图片路径（支持 URL）
+        loading_config = self.config.get('loadingImage', 'loading.png')
+        loading_img = self.get_resource_path(app_name, loading_config)
+        
+        if loading_img and loading_img.exists():
             drawable_dir = android_res_dir / "drawable"
             drawable_dir.mkdir(parents=True, exist_ok=True)
             shutil.copy(loading_img, drawable_dir / "loading.png")
             print(f"Copied: {loading_img} -> {drawable_dir / 'loading.png'}")
+        elif loading_config:
+            print(f"Warning: Loading image not found: {loading_config}")
         
-        # 复制应用图标到mipmap目录
-        icon_img = app_assets_dir / self.config.get('iconImage', 'icon.png')
-        if icon_img.exists():
+        # 获取应用图标路径（支持 URL）
+        icon_config = self.config.get('appIcon', self.config.get('iconImage', 'icon.png'))
+        icon_img = self.get_resource_path(app_name, icon_config)
+        
+        if icon_img and icon_img.exists():
             # 为不同密度创建mipmap目录
             mipmap_densities = ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi']
             for density in mipmap_densities:
@@ -112,12 +178,14 @@ class ConfigBuilder:
                 shutil.copy(icon_img, mipmap_dir / "ic_launcher.png")
                 shutil.copy(icon_img, mipmap_dir / "ic_launcher_round.png")
             print(f"Copied: {icon_img} -> mipmap directories")
+        elif icon_config:
+            print(f"Warning: App icon not found: {icon_config}")
         
         # 复制iOS资源
         ios_assets_dir = self.ios_dir / "WebViewApp" / "Assets.xcassets"
         
         # 复制loading图片
-        if loading_img.exists():
+        if loading_img and loading_img.exists():
             loading_imageset = ios_assets_dir / "loading.imageset"
             loading_imageset.mkdir(parents=True, exist_ok=True)
             shutil.copy(loading_img, loading_imageset / "loading.png")
@@ -149,7 +217,7 @@ class ConfigBuilder:
             print(f"Copied: {loading_img} -> {loading_imageset / 'loading.png'}")
         
         # 复制应用图标到AppIcon.appiconset
-        if icon_img.exists():
+        if icon_img and icon_img.exists():
             appicon_dir = ios_assets_dir / "AppIcon.appiconset"
             appicon_dir.mkdir(parents=True, exist_ok=True)
             
