@@ -299,8 +299,14 @@ jobs:
 
       - name: Upload to TestFlight
         run: |
-          # 解码 API 密钥
-          echo "${{ secrets.APP_STORE_API_KEY_BASE64 }}" | base64 --decode > AuthKey.p8
+          # 创建私钥目录
+          mkdir -p ~/.appstoreconnect/private_keys
+          
+          # 解码 API 密钥并保存到正确的位置和文件名
+          echo "${{ secrets.APP_STORE_API_KEY_BASE64 }}" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_API_KEY_ID }}.p8
+          
+          # 设置文件权限
+          chmod 600 ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_API_KEY_ID }}.p8
           
           # 上传 IPA
           xcrun altool --upload-app \
@@ -308,8 +314,6 @@ jobs:
             --type ios \
             --apiKey ${{ secrets.APP_STORE_API_KEY_ID }} \
             --apiIssuer ${{ secrets.APP_STORE_API_ISSUER_ID }}
-        env:
-          APP_STORE_CONNECT_API_KEY_PATH: ./AuthKey.p8
 
       - name: Upload iOS Debug App
         if: needs.prepare.outputs.need_debug == 'true'
