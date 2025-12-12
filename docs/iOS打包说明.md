@@ -189,7 +189,50 @@ base64 -i profile.mobileprovision | pbcopy
 | `IOS_EXPORT_METHOD`                 | 导出方式                           | `app-store`（或 `ad-hoc`、`development`）|
 | `KEYCHAIN_PASSWORD`                 | 临时 Keychain 密码（可随意设置）    | `temp_keychain_password`         |
 
-### 5.3 配置文件更新
+### 5.3 配置 TestFlight 自动上传（可选）
+
+如果希望在构建完成后自动上传到 TestFlight，需要额外配置 App Store Connect API 密钥。
+
+#### 5.3.1 生成 App Store Connect API 密钥
+
+1. 登录 [App Store Connect](https://appstoreconnect.apple.com/)
+2. 点击 **用户和访问** > **密钥** 标签页（或访问 [API 密钥页面](https://appstoreconnect.apple.com/access/api)）
+3. 点击 **+** 按钮生成新密钥
+4. 填写信息：
+   - **名称**：如 "GitHub Actions"
+   - **访问权限**：选择 **App Manager** 或 **Admin**
+5. 点击 **生成**
+6. **立即下载密钥文件**（`.p8` 文件），只能下载一次！
+7. 记录以下信息：
+   - **密钥 ID**（Key ID）：10 位字符
+   - **Issuer ID**：UUID 格式
+
+#### 5.3.2 转换 API 密钥为 Base64
+
+```bash
+# 将 .p8 文件转换为 Base64
+base64 -i AuthKey_XXXXXXXXXX.p8 -o AuthKey.p8.base64
+# 或者直接输出到剪贴板（MacOS）
+base64 -i AuthKey_XXXXXXXXXX.p8 | pbcopy
+```
+
+#### 5.3.3 添加 TestFlight 相关 Secrets
+
+在 GitHub 仓库中添加以下额外的 Secrets：
+
+| Secret 名称                      | 说明                               | 示例值                          |
+|---------------------------------|------------------------------------|---------------------------------|
+| `APP_STORE_API_KEY_BASE64`      | API 密钥（.p8）的 Base64 编码       | （Base64 字符串）                |
+| `APP_STORE_API_KEY_ID`          | API 密钥 ID                        | `ABCDE12345`                    |
+| `APP_STORE_API_ISSUER_ID`       | Issuer ID                          | `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx` |
+
+**⚠️ 重要提示：**
+- 在上传到 TestFlight 之前，必须先在 App Store Connect 中创建应用记录（参见第 7.2 节）
+- 确保 Bundle ID 与 App Store Connect 中的应用一致
+- 如果这些 Secrets 未配置，构建流程会自动跳过 TestFlight 上传步骤
+- 即使 TestFlight 上传失败，也不会影响 IPA 文件的生成和上传到 GitHub Releases
+
+### 5.4 配置文件更新
 
 在 `assets/app1/app.cfg` 中更新：
 
@@ -516,6 +559,41 @@ xcrun altool --upload-app \
 <key>ITSAppUsesNonExemptEncryption</key>
 <false/>
 ```
+
+### 8.5 TestFlight 自动上传失败
+
+**问题：** `Cannot determine the Apple ID from Bundle ID 'com.xxx.xxx' and platform 'IOS'`
+
+**原因：**
+- App Store Connect 中还没有创建对应的应用记录
+- Bundle ID 与 App Store Connect 中的应用不匹配
+- API 密钥没有访问该应用的权限
+
+**解决方案：**
+1. **首先在 App Store Connect 中创建应用**（参见第 7.2 节）：
+   - 登录 [App Store Connect](https://appstoreconnect.apple.com/)
+   - 点击 **我的 App** > **+** 按钮 > **新建 App**
+   - 填写应用信息，确保 Bundle ID 与项目中的一致
+   
+2. **验证 API 密钥权限**：
+   - 确保 API 密钥的角色至少是 **App Manager**
+   - 在 App Store Connect > **用户和访问** > **密钥** 中检查
+   
+3. **验证 Bundle ID**：
+   - 检查 `assets/app1/app.cfg` 中的 `appId` 或 `iosBundleId`
+   - 确保与 App Store Connect 中的应用 Bundle ID 完全一致
+   
+4. **如果暂时不需要自动上传**：
+   - 构建流程会自动跳过 TestFlight 上传（设置了 `continue-on-error: true`）
+   - IPA 文件仍会正常生成并上传到 GitHub Releases
+   - 稍后可以手动使用 Xcode 或 Transporter 上传
+
+**问题：** `Failed to load AuthKey file`
+
+**解决方案：**
+- 确保 `APP_STORE_API_KEY_BASE64` secret 正确配置
+- 确保 `APP_STORE_API_KEY_ID` 与下载的 `.p8` 文件名匹配
+- 验证 Base64 编码是否正确：`base64 -i AuthKey_XXXXX.p8`
 
 ---
 

@@ -298,6 +298,8 @@ jobs:
             -allowProvisioningUpdates
 
       - name: Upload to TestFlight
+        if: secrets.APP_STORE_API_KEY_BASE64 != '' && secrets.APP_STORE_API_KEY_ID != '' && secrets.APP_STORE_API_ISSUER_ID != ''
+        continue-on-error: true
         run: |
           # 创建私钥目录
           mkdir -p ~/.appstoreconnect/private_keys
@@ -308,12 +310,26 @@ jobs:
           # 设置文件权限
           chmod 600 ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_API_KEY_ID }}.p8
           
+          echo "开始上传 IPA 到 TestFlight..."
+          echo "Bundle ID: ${BUNDLE_ID}"
+          echo "IPA 路径: ios/build-release/output/WebViewApp.ipa"
+          
           # 上传 IPA
           xcrun altool --upload-app \
             --file ios/build-release/output/WebViewApp.ipa \
             --type ios \
             --apiKey ${{ secrets.APP_STORE_API_KEY_ID }} \
             --apiIssuer ${{ secrets.APP_STORE_API_ISSUER_ID }}
+          
+          if [ $? -eq 0 ]; then
+            echo "✅ 成功上传到 TestFlight"
+          else
+            echo "⚠️ TestFlight 上传失败，但构建将继续"
+            echo "请确保："
+            echo "1. 已在 App Store Connect 中创建了 Bundle ID 为 ${BUNDLE_ID} 的应用"
+            echo "2. API 密钥有访问该应用的权限"
+            echo "3. API 密钥所属的 Team 与应用一致"
+          fi
 
       - name: Upload iOS Debug App
         if: needs.prepare.outputs.need_debug == 'true'
