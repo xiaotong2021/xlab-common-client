@@ -19,6 +19,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // 隐藏顶部标题栏
+        supportActionBar?.hide()
+        
         setContentView(R.layout.activity_main)
 
         webView = findViewById(R.id.webView)

@@ -32,7 +32,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="false"
-            android:theme="@style/Theme.WebViewApp"
+            android:theme="@style/Theme.WebViewApp.NoActionBar"
             android:configChanges="orientation|screenSize|keyboardHidden" />
     </application>
 

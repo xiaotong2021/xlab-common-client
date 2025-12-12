@@ -16,6 +16,10 @@ class LoadingActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // 隐藏顶部标题栏
+        supportActionBar?.hide()
+        
         setContentView(R.layout.activity_loading)
 
         // 设置背景色
