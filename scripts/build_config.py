@@ -159,8 +159,25 @@ class ConfigBuilder:
         if loading_img and loading_img.exists():
             drawable_dir = android_res_dir / "drawable"
             drawable_dir.mkdir(parents=True, exist_ok=True)
-            shutil.copy(loading_img, drawable_dir / "loading.png")
-            print(f"Copied: {loading_img} -> {drawable_dir / 'loading.png'}")
+            target_loading = drawable_dir / "loading.png"
+            
+            # 使用 PIL 处理图片以确保 Android 兼容性
+            if PIL_AVAILABLE:
+                try:
+                    img = Image.open(loading_img)
+                    # 转换为 RGBA（Android 支持透明度）
+                    if img.mode not in ('RGBA', 'RGB'):
+                        img = img.convert('RGBA' if img.mode in ('LA', 'P') else 'RGB')
+                    # 保存为优化的 PNG（移除可能有问题的元数据）
+                    img.save(target_loading, 'PNG', optimize=True)
+                    print(f"Processed and copied: {loading_img} -> {target_loading}")
+                except Exception as e:
+                    print(f"Warning: Failed to process loading image with PIL: {e}")
+                    print(f"  Falling back to direct copy")
+                    shutil.copy(loading_img, target_loading)
+            else:
+                shutil.copy(loading_img, target_loading)
+                print(f"Copied: {loading_img} -> {target_loading} (PIL not available)")
         elif loading_config:
             print(f"Warning: Loading image not found: {loading_config}")
         
@@ -174,10 +191,34 @@ class ConfigBuilder:
             for density in mipmap_densities:
                 mipmap_dir = android_res_dir / f"mipmap-{density}"
                 mipmap_dir.mkdir(parents=True, exist_ok=True)
-                # 复制图标和圆形图标
-                shutil.copy(icon_img, mipmap_dir / "ic_launcher.png")
-                shutil.copy(icon_img, mipmap_dir / "ic_launcher_round.png")
-            print(f"Copied: {icon_img} -> mipmap directories")
+                
+                # 使用 PIL 处理图标以确保 Android 兼容性
+                if PIL_AVAILABLE:
+                    try:
+                        img = Image.open(icon_img)
+                        # Android 图标可以有透明度，但建议使用 RGBA 或 RGB
+                        if img.mode == 'P':
+                            img = img.convert('RGBA')
+                        elif img.mode not in ('RGBA', 'RGB'):
+                            img = img.convert('RGB')
+                        
+                        # 保存图标和圆形图标（移除元数据）
+                        img.save(mipmap_dir / "ic_launcher.png", 'PNG', optimize=True)
+                        img.save(mipmap_dir / "ic_launcher_round.png", 'PNG', optimize=True)
+                    except Exception as e:
+                        print(f"Warning: Failed to process icon for {density} with PIL: {e}")
+                        print(f"  Falling back to direct copy")
+                        shutil.copy(icon_img, mipmap_dir / "ic_launcher.png")
+                        shutil.copy(icon_img, mipmap_dir / "ic_launcher_round.png")
+                else:
+                    # 没有 PIL，直接复制
+                    shutil.copy(icon_img, mipmap_dir / "ic_launcher.png")
+                    shutil.copy(icon_img, mipmap_dir / "ic_launcher_round.png")
+            
+            if PIL_AVAILABLE:
+                print(f"Processed and copied: {icon_img} -> mipmap directories")
+            else:
+                print(f"Copied: {icon_img} -> mipmap directories (PIL not available)")
         elif icon_config:
             print(f"Warning: App icon not found: {icon_config}")
         
