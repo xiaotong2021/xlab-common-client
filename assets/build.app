@@ -1,1 +1,1 @@
-appName=app1
+appName=idiomApp
