@@ -13,6 +13,7 @@
 - 🎨 **自定义 UI**：支持自定义启动页、加载动画等
 - 🔐 **Debug/Release 模式**：支持调试和生产两种构建模式
 - 📦 **资源管理**：统一管理应用图标、启动图等资源
+- 📴 **离线支持**：可将在线HTML下载打包，支持无网络环境使用
 
 ---
 
@@ -199,6 +200,7 @@ isDebug=true                      # Debug 模式（true）或 Release 模式（f
 
 ```properties
 loadUrl=https://www.baidu.com     # 要加载的 URL
+isWebLocal=false                  # 是否使用本地HTML（离线模式）
 enableJavaScript=true             # 启用 JavaScript
 enableDOMStorage=true             # 启用 DOM 存储
 enableCache=true                  # 启用缓存
@@ -206,6 +208,11 @@ allowFileAccess=false             # 允许文件访问
 mixedContentMode=NEVER            # 混合内容模式
 userAgentString=                  # 自定义 User Agent
 ```
+
+**离线模式说明：**
+- 当 `isWebLocal=true` 时，构建脚本会自动下载 `loadUrl` 指定的HTML及其所有资源
+- 下载的内容会与应用一起打包，支持无网络环境下使用
+- 详细配置请参考 [离线HTML加载配置说明](docs/离线HTML加载配置说明.md)
 
 #### Loading 页面配置
 
@@ -374,6 +381,20 @@ git push origin v1.0.0
 ## 📚 文档
 
 详细文档请参考：
+
+- [快速开始指南](docs/快速开始指南.md)
+  - 基础配置
+  - 资源准备
+  - 构建流程
+
+- [配置文件说明](docs/配置文件说明.md)
+  - 完整配置项说明
+  - 最佳实践
+
+- [离线HTML加载配置说明](docs/离线HTML加载配置说明.md)
+  - 启用离线模式
+  - Web内容下载
+  - 故障排除
 
 - [Android 打包说明](docs/Android打包说明.md)
   - 生成签名密钥库

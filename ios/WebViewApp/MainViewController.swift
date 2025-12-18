@@ -98,13 +98,25 @@ class MainViewController: UIViewController {
     }
     
     private func loadURL() {
-        guard let url = URL(string: AppConfig.loadUrl) else {
-            print("Invalid URL: \(AppConfig.loadUrl)")
-            return
+        if AppConfig.isWebLocal {
+            // 加载本地HTML文件
+            if let htmlPath = Bundle.main.path(forResource: "webapp/index", ofType: "html") {
+                let htmlURL = URL(fileURLWithPath: htmlPath)
+                let webappDir = htmlURL.deletingLastPathComponent()
+                webView.loadFileURL(htmlURL, allowingReadAccessTo: webappDir)
+            } else {
+                print("Error: Local HTML file not found at webapp/index.html")
+            }
+        } else {
+            // 加载在线URL
+            guard let url = URL(string: AppConfig.loadUrl) else {
+                print("Invalid URL: \(AppConfig.loadUrl)")
+                return
+            }
+            
+            let request = URLRequest(url: url)
+            webView.load(request)
         }
-        
-        let request = URLRequest(url: url)
-        webView.load(request)
     }
     
     deinit {
@@ -147,7 +159,7 @@ extension MainViewController: WKNavigationDelegate {
         )
         
         alert.addAction(UIAlertAction(title: AppConfig.errorButtonText, style: .default) { [weak self] _ in
-            self?.webView.reload()
+            self?.loadURL()
         })
         
         alert.addAction(UIAlertAction(title: "取消", style: .cancel))
