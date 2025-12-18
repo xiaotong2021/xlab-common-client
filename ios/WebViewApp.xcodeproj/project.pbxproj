@@ -14,6 +14,7 @@
 		8D1107390486CEB800E47098 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D11073A0486CEB800E47099 /* AppConfig.swift */; };
 		8D11073B0486CEB800E4709A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8D11073C0486CEB800E4709B /* Assets.xcassets */; };
 		8D11073D0486CEB800E4709C /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 8D11073E0486CEB800E4709D /* LaunchScreen.storyboard */; };
+		8D1107500486CEB800E470B0 /* webapp in Resources */ = {isa = PBXBuildFile; fileRef = 8D11074F0486CEB800E470AF /* webapp */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -26,6 +27,7 @@
 		8D11073E0486CEB800E4709D /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		8D11073F0486CEB800E4709E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		8D1107400486CEB800E4709F /* WebViewApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = WebViewApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8D11074F0486CEB800E470AF /* webapp */ = {isa = PBXFileReference; lastKnownFileType = folder; path = webapp; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -57,6 +59,7 @@
 				8D11073A0486CEB800E47099 /* AppConfig.swift */,
 				8D11073C0486CEB800E4709B /* Assets.xcassets */,
 				8D11073E0486CEB800E4709D /* LaunchScreen.storyboard */,
+				8D11074F0486CEB800E470AF /* webapp */,
 				8D11073F0486CEB800E4709E /* Info.plist */,
 			);
 			path = WebViewApp;
@@ -130,6 +133,7 @@
 			files = (
 				8D11073D0486CEB800E4709C /* LaunchScreen.storyboard in Resources */,
 				8D11073B0486CEB800E4709A /* Assets.xcassets in Resources */,
+				8D1107500486CEB800E470B0 /* webapp in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
