@@ -31,8 +31,18 @@ class MainActivity : AppCompatActivity() {
         // 初始化WebView
         initWebView()
 
-        // 加载URL
-        webView.loadUrl(AppConfig.LOAD_URL)
+        // 加载URL（在线或离线）
+        loadContent()
+    }
+
+    private fun loadContent() {
+        if (AppConfig.IS_WEB_LOCAL) {
+            // 加载本地HTML文件
+            webView.loadUrl("file:///android_asset/webapp/index.html")
+        } else {
+            // 加载在线URL
+            webView.loadUrl(AppConfig.LOAD_URL)
+        }
     }
 
     private fun initWebView() {
@@ -49,9 +59,14 @@ class MainActivity : AppCompatActivity() {
             webSettings.cacheMode = WebSettings.LOAD_NO_CACHE
         }
 
-        // 文件访问
-        webSettings.allowFileAccess = AppConfig.ALLOW_FILE_ACCESS
-        webSettings.allowContentAccess = AppConfig.ALLOW_CONTENT_ACCESS
+        // 文件访问（本地模式需要启用）
+        if (AppConfig.IS_WEB_LOCAL) {
+            webSettings.allowFileAccess = true
+            webSettings.allowContentAccess = true
+        } else {
+            webSettings.allowFileAccess = AppConfig.ALLOW_FILE_ACCESS
+            webSettings.allowContentAccess = AppConfig.ALLOW_CONTENT_ACCESS
+        }
 
         // 混合内容模式
         when (AppConfig.MIXED_CONTENT_MODE) {
@@ -133,7 +148,7 @@ class MainActivity : AppCompatActivity() {
             .setTitle(AppConfig.ERROR_PAGE_TITLE)
             .setMessage(AppConfig.ERROR_PAGE_MESSAGE)
             .setPositiveButton(AppConfig.ERROR_BUTTON_TEXT) { _, _ ->
-                webView.reload()
+                loadContent()
             }
             .setNegativeButton("取消", null)
             .show()

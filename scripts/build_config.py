@@ -20,6 +20,52 @@ except ImportError:
     PIL_AVAILABLE = False
     print("Warning: PIL/Pillow not available. Icon resizing will be skipped.")
 
+try:
+    from urllib.parse import urljoin, urlparse
+    from html.parser import HTMLParser
+    import ssl
+except ImportError as e:
+    print(f"Error: Required module not available: {e}")
+    sys.exit(1)
+
+
+class HTMLResourceParser(HTMLParser):
+    """解析HTML并提取资源链接"""
+    def __init__(self, base_url):
+        super().__init__()
+        self.base_url = base_url
+        self.resources = []
+        self.tags_attrs = {
+            'link': ['href'],
+            'script': ['src'],
+            'img': ['src'],
+            'source': ['src', 'srcset'],
+            'video': ['src', 'poster'],
+            'audio': ['src'],
+            'embed': ['src'],
+            'object': ['data'],
+            'iframe': ['src']
+        }
+    
+    def handle_starttag(self, tag, attrs):
+        if tag in self.tags_attrs:
+            attrs_dict = dict(attrs)
+            for attr_name in self.tags_attrs[tag]:
+                if attr_name in attrs_dict:
+                    url = attrs_dict[attr_name]
+                    if url and not url.startswith('data:') and not url.startswith('javascript:'):
+                        # 处理srcset（可能包含多个URL）
+                        if attr_name == 'srcset':
+                            urls = [u.strip().split()[0] for u in url.split(',')]
+                            for u in urls:
+                                full_url = urljoin(self.base_url, u)
+                                if full_url not in self.resources:
+                                    self.resources.append(full_url)
+                        else:
+                            full_url = urljoin(self.base_url, url)
+                            if full_url not in self.resources:
+                                self.resources.append(full_url)
+
 
 class ConfigBuilder:
     def __init__(self, workspace_root):
@@ -117,6 +163,84 @@ class ConfigBuilder:
             print(f"Error downloading {url}: {e}")
             return None
     
+    def download_web_content(self, url, output_dir):
+        """下载网页及其所有资源"""
+        print(f"\n=== Downloading Web Content ===")
+        print(f"URL: {url}")
+        print(f"Output Directory: {output_dir}")
+        
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 下载主HTML文件
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'}
+            )
+            
+            with urllib.request.urlopen(req, timeout=30) as response:
+                html_content = response.read().decode('utf-8', errors='ignore')
+            
+            # 解析HTML获取资源链接
+            parser = HTMLResourceParser(url)
+            parser.feed(html_content)
+            
+            print(f"Found {len(parser.resources)} resources to download")
+            
+            # 下载所有资源
+            downloaded_resources = {}
+            for resource_url in parser.resources:
+                try:
+                    parsed = urlparse(resource_url)
+                    # 生成本地文件名（保留路径结构）
+                    local_path = parsed.path.lstrip('/')
+                    if not local_path:
+                        continue
+                    
+                    # 创建本地目录结构
+                    local_file = output_dir / local_path
+                    local_file.parent.mkdir(parents=True, exist_ok=True)
+                    
+                    # 下载资源
+                    req = urllib.request.Request(
+                        resource_url,
+                        headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)'}
+                    )
+                    
+                    with urllib.request.urlopen(req, timeout=30) as response:
+                        with open(local_file, 'wb') as f:
+                            f.write(response.read())
+                    
+                    print(f"  Downloaded: {resource_url} -> {local_path}")
+                    downloaded_resources[resource_url] = local_path
+                    
+                except Exception as e:
+                    print(f"  Warning: Failed to download {resource_url}: {e}")
+            
+            # 修改HTML中的资源链接为本地路径
+            for resource_url, local_path in downloaded_resources.items():
+                html_content = html_content.replace(resource_url, local_path)
+                # 也替换相对路径版本
+                parsed = urlparse(resource_url)
+                html_content = html_content.replace(parsed.path, local_path)
+            
+            # 保存修改后的HTML
+            index_file = output_dir / "index.html"
+            with open(index_file, 'w', encoding='utf-8') as f:
+                f.write(html_content)
+            
+            print(f"\nSaved HTML to: {index_file}")
+            print(f"Total resources downloaded: {len(downloaded_resources)}")
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error downloading web content: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
     def get_resource_path(self, app_name, resource_config_value):
         """获取资源文件路径，支持本地路径和 HTTP(S) URL"""
         # 检查是否是 URL
@@ -148,6 +272,35 @@ class ConfigBuilder:
     def copy_resources(self, app_name):
         """复制资源文件到项目目录"""
         app_assets_dir = self.assets_dir / app_name
+        
+        # 检查是否需要下载Web内容
+        is_web_local = self.parse_boolean(self.config.get('isWebLocal', 'false'))
+        if is_web_local:
+            load_url = self.config.get('loadUrl', '')
+            if load_url and (load_url.startswith('http://') or load_url.startswith('https://')):
+                # 下载Web内容到临时目录
+                temp_web_dir = Path(tempfile.gettempdir()) / "xlab_web_content"
+                if temp_web_dir.exists():
+                    shutil.rmtree(temp_web_dir)
+                
+                if self.download_web_content(load_url, temp_web_dir):
+                    # 复制到Android assets
+                    android_assets_dir = self.android_dir / "app" / "src" / "main" / "assets" / "webapp"
+                    if android_assets_dir.exists():
+                        shutil.rmtree(android_assets_dir)
+                    shutil.copytree(temp_web_dir, android_assets_dir)
+                    print(f"\nCopied web content to Android: {android_assets_dir}")
+                    
+                    # 复制到iOS bundle
+                    ios_webapp_dir = self.ios_dir / "WebViewApp" / "webapp"
+                    if ios_webapp_dir.exists():
+                        shutil.rmtree(ios_webapp_dir)
+                    shutil.copytree(temp_web_dir, ios_webapp_dir)
+                    print(f"Copied web content to iOS: {ios_webapp_dir}")
+                else:
+                    print("Warning: Failed to download web content, continuing with online mode")
+            else:
+                print("Warning: isWebLocal=true but loadUrl is not a valid HTTP(S) URL")
         
         # 复制Android资源
         android_res_dir = self.android_dir / "app" / "src" / "main" / "res"
@@ -344,6 +497,7 @@ class ConfigBuilder:
             
             # WebView配置
             '__LOAD_URL__': self.config.get('loadUrl', 'https://www.baidu.com'),
+            '__IS_WEB_LOCAL__': str(self.parse_boolean(self.config.get('isWebLocal', 'false'))).lower(),
             '__ENABLE_JAVASCRIPT__': str(self.parse_boolean(self.config.get('enableJavaScript', 'true'))).lower(),
             '__ENABLE_DOM_STORAGE__': str(self.parse_boolean(self.config.get('enableDOMStorage', 'true'))).lower(),
             '__ENABLE_CACHE__': str(self.parse_boolean(self.config.get('enableCache', 'true'))).lower(),
@@ -441,6 +595,7 @@ class ConfigBuilder:
             
             # WebView配置 (与Android相同)
             '__LOAD_URL__': self.config.get('loadUrl', 'https://www.baidu.com'),
+            '__IS_WEB_LOCAL__': str(self.parse_boolean(self.config.get('isWebLocal', 'false'))).lower(),
             '__ENABLE_JAVASCRIPT__': str(self.parse_boolean(self.config.get('enableJavaScript', 'true'))).lower(),
             '__ENABLE_DOM_STORAGE__': str(self.parse_boolean(self.config.get('enableDOMStorage', 'true'))).lower(),
             '__ENABLE_CACHE__': str(self.parse_boolean(self.config.get('enableCache', 'true'))).lower(),

@@ -13,6 +13,7 @@ object AppConfig {
     
     // WebView配置
     const val LOAD_URL = "__LOAD_URL__"
+    const val IS_WEB_LOCAL = __IS_WEB_LOCAL__
     const val ENABLE_JAVASCRIPT = __ENABLE_JAVASCRIPT__
     const val ENABLE_DOM_STORAGE = __ENABLE_DOM_STORAGE__
     const val ENABLE_CACHE = __ENABLE_CACHE__

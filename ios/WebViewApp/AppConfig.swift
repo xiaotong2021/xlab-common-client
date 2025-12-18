@@ -18,6 +18,7 @@ struct AppConfig {
     
     // WebView配置
     static let loadUrl = "__LOAD_URL__"
+    static let isWebLocal = __IS_WEB_LOCAL__
     static let enableJavaScript = __ENABLE_JAVASCRIPT__
     static let enableDOMStorage = __ENABLE_DOM_STORAGE__
     static let enableCache = __ENABLE_CACHE__
