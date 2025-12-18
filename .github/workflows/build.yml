@@ -203,12 +203,21 @@ jobs:
           echo "PROFILE_UUID=$PROFILE_UUID" >> $GITHUB_ENV
           echo "Installed Profile UUID: $PROFILE_UUID"
           
-          # 获取 Bundle ID（从 Profile 中提取，去掉 Team ID 前缀）
-          # application-identifier 格式: TEAMID.com.example.app
-          # 使用 sed 删除第一个点之前的内容（Team ID）
-          BUNDLE_ID=$(security cms -D -i profile.mobileprovision | plutil -extract Entitlements.application-identifier raw - | sed 's/^[^.]*\.//')
+          # 获取 Profile 名称（用于 exportOptions.plist）
+          PROFILE_NAME=$(security cms -D -i profile.mobileprovision | plutil -extract Name raw -)
+          echo "PROFILE_NAME=$PROFILE_NAME" >> $GITHUB_ENV
+          echo "Profile Name: $PROFILE_NAME"
+          
+          # 从 app.cfg 读取实际的 Bundle ID（支持通配符 Profile）
+          # 不再从 Profile 中提取，因为 Profile 可能是通配符（如 com.xlab.*）
+          APP_NAME=$(cat assets/build.app | grep appName | cut -d'=' -f2)
+          BUNDLE_ID=$(grep "^appId=" assets/${APP_NAME}/app.cfg | cut -d'=' -f2)
           echo "BUNDLE_ID=$BUNDLE_ID" >> $GITHUB_ENV
-          echo "Bundle ID from Profile: $BUNDLE_ID"
+          echo "Bundle ID from app.cfg: $BUNDLE_ID"
+          
+          # 验证 Profile 的 App ID（用于调试）
+          PROFILE_APP_ID=$(security cms -D -i profile.mobileprovision | plutil -extract Entitlements.application-identifier raw - | sed 's/^[^.]*\.//')
+          echo "Profile App ID: $PROFILE_APP_ID"
           
           # 复制 Profile 到正确的位置（使用 UUID 作为文件名）
           cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/${PROFILE_UUID}.mobileprovision
@@ -229,16 +238,26 @@ jobs:
             echo "Certificate Identity (iPhone): $CERT_IDENTITY"
           fi
           
-          # 创建 exportOptions.plist（包含 provisioningProfiles）
+          # 设置 export method 和 team ID 为 shell 变量
+          EXPORT_METHOD="${{ secrets.IOS_EXPORT_METHOD }}"
+          if [ -z "$EXPORT_METHOD" ]; then
+            EXPORT_METHOD="app-store"
+          fi
+          TEAM_ID="${{ secrets.IOS_TEAM_ID }}"
+          
+          echo "Export Method: $EXPORT_METHOD"
+          echo "Team ID: $TEAM_ID"
+          
+          # 创建 exportOptions.plist（使用 Profile 名称支持通配符）
           cat > ios/exportOptions.plist << EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
               <key>method</key>
-              <string>${{ secrets.IOS_EXPORT_METHOD || 'app-store' }}</string>
+              <string>${EXPORT_METHOD}</string>
               <key>teamID</key>
-              <string>${{ secrets.IOS_TEAM_ID }}</string>
+              <string>${TEAM_ID}</string>
               <key>uploadBitcode</key>
               <false/>
               <key>uploadSymbols</key>
@@ -252,14 +271,15 @@ jobs:
               <key>provisioningProfiles</key>
               <dict>
                   <key>${BUNDLE_ID}</key>
-                  <string>${PROFILE_UUID}</string>
+                  <string>${PROFILE_NAME}</string>
               </dict>
           </dict>
           </plist>
           EOF
           
-          echo "Created exportOptions.plist:"
+          echo "=== Created exportOptions.plist ==="
           cat ios/exportOptions.plist
+          echo "=== End of exportOptions.plist ==="
 
       - name: Build iOS app (Debug)
         if: needs.prepare.outputs.need_debug == 'true'
@@ -287,7 +307,7 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             DEVELOPMENT_TEAM="${{ secrets.IOS_TEAM_ID }}" \
             CODE_SIGN_IDENTITY="${CERT_IDENTITY}" \
-            PROVISIONING_PROFILE_SPECIFIER="${PROFILE_UUID}" \
+            PROVISIONING_PROFILE_SPECIFIER="${PROFILE_NAME}" \
             archive
           
           # 导出IPA
