@@ -12,6 +12,7 @@ import urllib.request
 import urllib.parse
 import tempfile
 from pathlib import Path
+from datetime import datetime
 
 try:
     from PIL import Image
@@ -116,6 +117,15 @@ class ConfigBuilder:
         if isinstance(value, bool):
             return value
         return value.lower() in ('true', 'yes', '1')
+    
+    def generate_build_number(self):
+        """生成基于当前时间的构建号
+        格式: MMDDHHmmss (月日小时分钟秒)
+        例如: 1218143045 表示 12月18日14点30分45秒
+        """
+        now = datetime.now()
+        build_number = now.strftime('%m%d%H%M%S')
+        return build_number
     
     def replace_file_content(self, file_path, replacements):
         """替换文件内容"""
@@ -651,6 +661,15 @@ class ConfigBuilder:
         self.config = self.read_config(app_name)
         print(f"Config loaded from: assets/{app_name}/app.cfg")
         print(f"Total config items: {len(self.config)}")
+        
+        # 自动生成基于时间的 buildNumber（如果配置中没有提供）
+        if 'buildNumber' not in self.config or not self.config['buildNumber']:
+            build_number = self.generate_build_number()
+            self.config['buildNumber'] = build_number
+            print(f"\n📦 Auto-generated Build Number: {build_number}")
+            print(f"   Format: MMDDHHmmss (Month-Day-Hour-Minute-Second)")
+        else:
+            print(f"\n📦 Using configured Build Number: {self.config['buildNumber']}")
         
         # 复制资源文件
         print("\n=== Copying Resources ===")
