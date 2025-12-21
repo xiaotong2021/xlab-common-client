@@ -57,6 +57,24 @@ class MainViewController: UIViewController {
             webView.configuration.defaultWebpagePreferences.allowsContentJavaScript = AppConfig.enableJavaScript
         }
         
+        // 禁用缩放（通过 JavaScript 注入 viewport meta 标签）
+        if !AppConfig.enableZoom {
+            let disableZoomScript = """
+            var meta = document.createElement('meta');
+            meta.name = 'viewport';
+            meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+            var existingMeta = document.querySelector('meta[name="viewport"]');
+            if (existingMeta) {
+                existingMeta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+            } else {
+                document.getElementsByTagName('head')[0].appendChild(meta);
+            }
+            """
+            
+            let script = WKUserScript(source: disableZoomScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+            webView.configuration.userContentController.addUserScript(script)
+        }
+        
         // 调试模式
         if #available(iOS 16.4, *), AppConfig.enableDebugging {
             webView.isInspectable = true

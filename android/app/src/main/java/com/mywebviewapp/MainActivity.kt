@@ -84,10 +84,16 @@ class MainActivity : AppCompatActivity() {
         webSettings.setSupportZoom(AppConfig.ENABLE_ZOOM)
         webSettings.builtInZoomControls = AppConfig.ENABLE_BUILT_IN_ZOOM_CONTROLS
         webSettings.displayZoomControls = false
-
-        // 其他设置
-        webSettings.loadWithOverviewMode = true
-        webSettings.useWideViewPort = true
+        
+        // 如果禁用缩放，需要同时调整这些设置
+        if (!AppConfig.ENABLE_ZOOM) {
+            webSettings.loadWithOverviewMode = false
+            webSettings.useWideViewPort = false
+        } else {
+            webSettings.loadWithOverviewMode = true
+            webSettings.useWideViewPort = true
+        }
+        
         webSettings.setSupportMultipleWindows(AppConfig.SUPPORT_MULTIPLE_WINDOWS)
 
         // 调试模式
@@ -114,6 +120,23 @@ class MainActivity : AppCompatActivity() {
                 super.onPageFinished(view, url)
                 if (AppConfig.SHOW_LOADING_PROGRESS) {
                     progressBar.visibility = View.GONE
+                }
+                
+                // 如果禁用缩放，通过JavaScript注入viewport meta标签
+                if (!AppConfig.ENABLE_ZOOM) {
+                    view?.evaluateJavascript("""
+                        (function() {
+                            var meta = document.querySelector('meta[name="viewport"]');
+                            if (meta) {
+                                meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no');
+                            } else {
+                                meta = document.createElement('meta');
+                                meta.name = 'viewport';
+                                meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+                                document.getElementsByTagName('head')[0].appendChild(meta);
+                            }
+                        })();
+                    """.trimIndent(), null)
                 }
             }
 

@@ -159,7 +159,7 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          pip install Pillow
+          pip install Pillow PyJWT requests cryptography
 
       - name: Configure project
         run: |
@@ -317,7 +317,13 @@ jobs:
             -exportOptionsPlist exportOptions.plist \
             -allowProvisioningUpdates
 
-      - name: Upload to TestFlight
+      - name: Generate App Screenshots
+        run: |
+          # 生成 App Store 截图
+          python3 scripts/generate_app_screenshots.py ${{ github.workspace }}
+        continue-on-error: true
+
+      - name: Check and setup App Store Connect
         run: |
           # 创建私钥目录
           mkdir -p ~/.appstoreconnect/private_keys
@@ -328,6 +334,16 @@ jobs:
           # 设置文件权限
           chmod 600 ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_API_KEY_ID }}.p8
           
+          # 运行 App Store Connect 检查脚本
+          # 这将检查应用是否存在，如果不存在则创建，并上传元数据和截图
+          python3 scripts/app_store_connect.py ${{ github.workspace }}
+        env:
+          APP_STORE_API_KEY_ID: ${{ secrets.APP_STORE_API_KEY_ID }}
+          APP_STORE_API_ISSUER_ID: ${{ secrets.APP_STORE_API_ISSUER_ID }}
+        continue-on-error: false
+
+      - name: Upload to TestFlight
+        run: |
           # 上传 IPA
           xcrun altool --upload-app \
             --file ios/build-release/output/WebViewApp.ipa \
