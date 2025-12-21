@@ -182,7 +182,7 @@ class AppStoreConnectAPI:
             print(f"❌ 查询版本失败: {e}")
             return None
     
-    def update_app_version_info(self, version_id, version_string, locale_data):
+    def update_app_version_info(self, version_id, version_string, locale_data, copyright=None):
         """
         更新应用版本信息（不创建新版本，只更新现有版本）
         
@@ -196,6 +196,7 @@ class AppStoreConnectAPI:
                 - supportUrl: 技术支持网址
                 - marketingUrl: 营销网址
                 - promotionalText: 推广文本
+            copyright: 版权信息（可选）
                 
         Returns:
             字典，包含成功更新的locale和对应的数据: {locale: data, ...}
@@ -203,6 +204,23 @@ class AppStoreConnectAPI:
         print(f"📝 更新应用版本信息: {version_string}")
         
         try:
+            # 更新版权信息（如果提供）
+            if copyright:
+                try:
+                    copyright_data = {
+                        "data": {
+                            "type": "appStoreVersions",
+                            "id": version_id,
+                            "attributes": {
+                                "copyright": copyright
+                            }
+                        }
+                    }
+                    self.make_request("PATCH", f"appStoreVersions/{version_id}", data=copyright_data)
+                    print(f"✅ 版权信息已更新: {copyright}")
+                except Exception as e:
+                    print(f"⚠️  版权信息更新失败: {e}")
+            
             # 更新本地化信息
             updated_locales = self.update_version_localizations(version_id, locale_data)
             return updated_locales
@@ -380,8 +398,39 @@ class AppStoreConnectAPI:
                 - name: 应用名称
                 - privacyPolicyUrl: 隐私政策URL
                 - privacyPolicyText: 隐私政策文本
+                - copyright: 版权信息
         """
         print(f"📋 更新应用元数据")
+        
+        # 获取应用信息 ID
+        app_info_result = self.make_request("GET", f"apps/{app_id}/appInfos")
+        if not app_info_result or not app_info_result.get("data"):
+            print(f"⚠️  无法获取应用信息")
+            return
+        
+        app_info_id = app_info_result["data"][0]["id"]
+        
+        # 更新 appInfo 级别的信息（如版权）
+        if metadata.get("copyright"):
+            try:
+                appinfo_update = {
+                    "data": {
+                        "type": "appInfos",
+                        "id": app_info_id,
+                        "attributes": {}
+                    }
+                }
+                
+                # 只更新提供的字段
+                if metadata.get("copyright"):
+                    appinfo_update["data"]["attributes"]["appStoreState"] = None  # 需要检查正确的字段名
+                
+                # 注意：版权信息实际上在 appStoreVersion 上，不在 appInfo 上
+                # 这里先注释掉，后面在 appStoreVersion 中处理
+                # self.make_request("PATCH", f"appInfos/{app_info_id}", data=appinfo_update)
+                print(f"ℹ️  版权信息需要在版本信息中设置")
+            except Exception as e:
+                print(f"⚠️  更新 appInfo 失败: {e}")
         
         # 获取应用信息本地化
         for locale in metadata.get("locales", ["zh-Hans", "en-US"]):
@@ -471,7 +520,7 @@ class AppStoreConnectAPI:
     
     def update_app_categories(self, app_id, primary_category, secondary_category=None):
         """
-        更新应用类别
+        更新应用类别（通过 appInfo）
         
         Args:
             app_id: 应用 ID
@@ -480,35 +529,45 @@ class AppStoreConnectAPI:
         """
         print(f"📂 更新应用类别")
         
-        update_data = {
-            "data": {
-                "type": "apps",
-                "id": app_id,
-                "relationships": {
-                    "primaryCategory": {
-                        "data": {
-                            "type": "appCategories",
-                            "id": primary_category
+        try:
+            # 获取 appInfo
+            app_info_result = self.make_request("GET", f"apps/{app_id}/appInfos")
+            if not app_info_result or not app_info_result.get("data"):
+                print(f"⚠️  无法获取应用信息")
+                return False
+            
+            app_info_id = app_info_result["data"][0]["id"]
+            
+            # 更新 appInfo 的类别
+            update_data = {
+                "data": {
+                    "type": "appInfos",
+                    "id": app_info_id,
+                    "relationships": {
+                        "primaryCategory": {
+                            "data": {
+                                "type": "appCategories",
+                                "id": primary_category
+                            }
                         }
                     }
                 }
             }
-        }
-        
-        if secondary_category:
-            update_data["data"]["relationships"]["secondaryCategory"] = {
-                "data": {
-                    "type": "appCategories",
-                    "id": secondary_category
+            
+            if secondary_category:
+                update_data["data"]["relationships"]["primarySubcategoryOne"] = {
+                    "data": {
+                        "type": "appCategories",
+                        "id": secondary_category
+                    }
                 }
-            }
-        
-        try:
-            self.make_request("PATCH", f"apps/{app_id}", data=update_data)
+            
+            self.make_request("PATCH", f"appInfos/{app_info_id}", data=update_data)
             print(f"✅ 应用类别已更新")
             return True
         except Exception as e:
             print(f"⚠️  应用类别更新失败: {e}")
+            print(f"提示: 类别必须在 App Store Connect 网站首次设置后才能通过 API 更新")
             return False
     
     def update_app_review_details(self, version_id, contact_info):
@@ -607,34 +666,37 @@ class AppStoreConnectAPI:
             print(f"⚠️  审核联系信息更新失败: {e}")
             return False
     
-    def attach_build_to_version(self, version_id, build_number=None):
+    def attach_build_to_version(self, app_id, version_id, build_number=None):
         """
         将构建版本关联到 App Store 版本
         
         Args:
+            app_id: 应用 ID
             version_id: 版本 ID
             build_number: 构建号（如果为 None，则使用最新的构建）
         """
         print(f"🔗 关联构建版本到 App Store 版本")
         
         try:
-            # 获取版本信息以获取 app_id
-            version_result = self.make_request("GET", f"appStoreVersions/{version_id}")
-            if not version_result or not version_result.get("data"):
-                print(f"⚠️  无法获取版本信息")
-                return False
-            
-            # 从版本的 relationships 中获取 app
-            app_link = version_result["data"]["relationships"]["app"]["links"]["related"]
-            app_id = app_link.split("/")[-1]
-            
-            # 获取可用的构建列表
-            builds_result = self.make_request("GET", f"apps/{app_id}/builds", params={"limit": 10})
+            # 获取可用的构建列表（按上传时间倒序）
+            builds_result = self.make_request("GET", f"apps/{app_id}/builds", params={
+                "limit": 20,
+                "sort": "-uploadedDate"
+            })
             
             if not builds_result or not builds_result.get("data"):
                 print(f"⚠️  未找到可用的构建")
-                print(f"提示: 请确保已通过 TestFlight 上传构建")
+                print(f"提示: 请确保已通过 TestFlight 上传构建，并等待构建处理完成")
                 return False
+            
+            # 列出可用的构建
+            print(f"📋 可用的构建列表:")
+            for i, build in enumerate(builds_result["data"][:5], 1):  # 只显示前5个
+                build_ver = build["attributes"].get("version")
+                build_num = build["attributes"].get("buildNumber")  
+                upload_date = build["attributes"].get("uploadedDate", "")[:10]
+                processing_state = build["attributes"].get("processingState", "UNKNOWN")
+                print(f"  {i}. 版本: {build_ver}, 构建号: {build_num}, 上传日期: {upload_date}, 状态: {processing_state}")
             
             # 选择构建
             selected_build = None
@@ -646,15 +708,25 @@ class AppStoreConnectAPI:
                         break
                 if not selected_build:
                     print(f"⚠️  未找到构建号 {build_number}")
+                    print(f"提示: 可用的构建号见上方列表")
                     return False
             else:
-                # 使用最新的构建
-                selected_build = builds_result["data"][0]
+                # 使用第一个处理完成的构建
+                for build in builds_result["data"]:
+                    processing_state = build["attributes"].get("processingState")
+                    if processing_state in ["VALID", "PROCESSING"]:
+                        selected_build = build
+                        break
+                
+                if not selected_build:
+                    # 如果没有找到有效的构建，使用第一个
+                    selected_build = builds_result["data"][0]
             
             build_id = selected_build["id"]
             build_version = selected_build["attributes"].get("version")
+            build_state = selected_build["attributes"].get("processingState", "UNKNOWN")
             
-            print(f"📦 选择构建: {build_version} (ID: {build_id})")
+            print(f"📦 选择构建: {build_version} (ID: {build_id}, 状态: {build_state})")
             
             # 关联构建到版本
             update_data = {
@@ -720,6 +792,7 @@ class AppStoreConnectAPI:
         
         # 查找或创建截图集（通过 appStoreVersionLocalization 的关系）
         screenshot_set_id = None
+        existing_screenshots = []
         
         try:
             # 通过关系端点获取现有的截图集
@@ -731,6 +804,15 @@ class AppStoreConnectAPI:
                     if screenshot_set["attributes"].get("screenshotDisplayType") == display_type:
                         screenshot_set_id = screenshot_set["id"]
                         print(f"✅ 找到现有截图集: {screenshot_set_id}")
+                        
+                        # 获取截图集中的现有截图
+                        try:
+                            screenshots_result = self.make_request("GET", f"appScreenshotSets/{screenshot_set_id}/appScreenshots")
+                            if screenshots_result and screenshots_result.get("data"):
+                                existing_screenshots = screenshots_result["data"]
+                                print(f"📋 发现 {len(existing_screenshots)} 个现有截图")
+                        except Exception as e:
+                            print(f"⚠️ 查询现有截图失败: {e}")
                         break
         except Exception as e:
             print(f"⚠️ 查询截图集失败: {e}")
@@ -740,6 +822,17 @@ class AppStoreConnectAPI:
             result = self.make_request("POST", "appScreenshotSets", data=create_data)
             screenshot_set_id = result["data"]["id"]
             print(f"✅ 创建截图集: {screenshot_set_id}")
+        else:
+            # 删除现有截图（替换模式）
+            if existing_screenshots:
+                print(f"🗑️  删除 {len(existing_screenshots)} 个旧截图...")
+                for old_screenshot in existing_screenshots:
+                    old_screenshot_id = old_screenshot["id"]
+                    try:
+                        self.make_request("DELETE", f"appScreenshots/{old_screenshot_id}")
+                        print(f"  ✓ 已删除截图: {old_screenshot_id}")
+                    except Exception as e:
+                        print(f"  ⚠️ 删除截图失败: {e}")
         
         # 步骤 2: 创建截图并获取上传 URL
         screenshot_data = {
@@ -1042,6 +1135,7 @@ def main():
         "bundle_id": bundle_id,
         "app_id": app_id,
         "version": None,
+        "copyright": None,
         "version_localizations": {},
         "app_info_localizations": {},
         "screenshots": {},
@@ -1076,7 +1170,15 @@ def main():
         # 更新版本信息
         if version_id and locale_data:
             try:
-                updated_locales = api.update_app_version_info(version_id, current_version, locale_data)
+                # 读取版权信息
+                copyright_text = config.get('appCopyright')
+                
+                updated_locales = api.update_app_version_info(version_id, current_version, locale_data, copyright=copyright_text)
+                
+                # 记录版权信息
+                if copyright_text:
+                    update_summary["copyright"] = copyright_text
+                
                 if updated_locales:
                     # 记录成功更新的版本本地化信息
                     for locale, data in updated_locales.items():
@@ -1213,7 +1315,7 @@ def main():
             print()
             try:
                 build_number = config.get('appBuildNumber')  # 如果不指定，会使用最新的构建
-                success = api.attach_build_to_version(version_id, build_number)
+                success = api.attach_build_to_version(app_id, version_id, build_number)
                 if success:
                     update_summary["build_attached"] = True
                 else:
@@ -1302,6 +1404,8 @@ def main():
         print(f"  • 版本号: {update_summary['version']}")
     else:
         print(f"  • 版本号: ⚠️ 未获取到版本信息")
+    if update_summary.get('copyright'):
+        print(f"  • 版权信息: {update_summary['copyright']}")
     print()
     
     # 版本本地化信息
