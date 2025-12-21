@@ -155,26 +155,64 @@ class AppStoreConnectAPI:
             print(f"⚠️  查找 Bundle ID 失败: {e}")
             return None
     
+    def sanitize_bundle_id_name(self, name, identifier):
+        """
+        清理 Bundle ID 名称，确保只包含有效字符
+        
+        Bundle ID name 只能包含: 字母、数字、空格、连字符、下划线
+        不能包含中文等特殊字符
+        
+        Args:
+            name: 原始名称
+            identifier: Bundle ID 标识符（作为后备）
+            
+        Returns:
+            清理后的有效名称
+        """
+        import re
+        
+        # 检查是否包含非 ASCII 字符（中文等）
+        if not name.isascii():
+            # 尝试从 Bundle ID 提取名称
+            # 如 com.xlab.psygym -> Psygym
+            parts = identifier.split('.')
+            if len(parts) > 0:
+                # 取最后一部分，首字母大写
+                name = parts[-1].capitalize()
+                print(f"ℹ️  Bundle ID 名称包含非英文字符，使用从 Bundle ID 提取的名称: {name}")
+        
+        # 只保留字母、数字、空格、连字符、下划线
+        sanitized = re.sub(r'[^a-zA-Z0-9\s\-_]', '', name)
+        
+        # 确保不为空
+        if not sanitized:
+            sanitized = "App"
+        
+        return sanitized.strip()
+    
     def create_bundle_id(self, identifier, name, platform="IOS"):
         """
         创建 Bundle ID
         
         Args:
             identifier: Bundle ID 标识符 (如 com.example.app)
-            name: 显示名称
+            name: 显示名称（可以包含中文，会自动清理）
             platform: 平台 (IOS, MAC_OS)
             
         Returns:
             创建的 Bundle ID 信息
         """
-        print(f"🆔 创建 Bundle ID: {name} ({identifier})")
+        # 清理名称，确保只包含有效字符
+        sanitized_name = self.sanitize_bundle_id_name(name, identifier)
+        
+        print(f"🆔 创建 Bundle ID: {sanitized_name} ({identifier})")
         
         data = {
             "data": {
                 "type": "bundleIds",
                 "attributes": {
                     "identifier": identifier,
-                    "name": name,
+                    "name": sanitized_name,
                     "platform": platform
                 }
             }
@@ -778,6 +816,13 @@ def main():
     # 获取必要的配置
     bundle_id = config.get('appId')
     app_display_name = config.get('appDisplayName', app_name)
+    
+    # 获取英文应用名称（用于创建 Bundle ID）
+    # Bundle ID 名称不支持中文，优先使用英文名称
+    app_display_name_en = config.get('appDisplayName_en_US', 
+                                     config.get('appDisplayName_en', 
+                                     app_display_name))
+    
     app_version = config.get('appVersion', '1.0.0')
     sku = config.get('iosSku', bundle_id.replace('.', '-'))
     
@@ -821,7 +866,8 @@ def main():
         if enable_create_app:
             print(f"📱 应用不存在，尝试创建...")
             try:
-                app = api.create_app(bundle_id, app_display_name, primary_locale, sku)
+                # 创建应用时使用英文名称（Bundle ID 名称不支持中文）
+                app = api.create_app(bundle_id, app_display_name_en, primary_locale, sku)
             except Exception as e:
                 print(f"❌ 应用创建失败: {e}")
                 print(f"提示: 请检查 Bundle ID 是否已被使用，或在 App Store Connect 手动创建应用")
