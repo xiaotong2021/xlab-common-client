@@ -127,9 +127,91 @@ class AppStoreConnectAPI:
             print(f"❌ 未找到应用: {bundle_id}")
             return None
     
+    def find_bundle_id(self, identifier):
+        """
+        查找 Bundle ID
+        
+        Args:
+            identifier: Bundle ID 标识符 (如 com.example.app)
+            
+        Returns:
+            Bundle ID 信息，如果不存在则返回 None
+        """
+        print(f"🔍 查找 Bundle ID: {identifier}")
+        
+        try:
+            # 使用 filter 查询 Bundle ID
+            params = {"filter[identifier]": identifier}
+            result = self.make_request("GET", "bundleIds", params=params)
+            
+            if result and result.get("data") and len(result["data"]) > 0:
+                bundle_id_info = result["data"][0]
+                print(f"✅ 找到 Bundle ID: {bundle_id_info['id']}")
+                return bundle_id_info
+            else:
+                print(f"❌ 未找到 Bundle ID: {identifier}")
+                return None
+        except Exception as e:
+            print(f"⚠️  查找 Bundle ID 失败: {e}")
+            return None
+    
+    def create_bundle_id(self, identifier, name, platform="IOS"):
+        """
+        创建 Bundle ID
+        
+        Args:
+            identifier: Bundle ID 标识符 (如 com.example.app)
+            name: 显示名称
+            platform: 平台 (IOS, MAC_OS)
+            
+        Returns:
+            创建的 Bundle ID 信息
+        """
+        print(f"🆔 创建 Bundle ID: {name} ({identifier})")
+        
+        data = {
+            "data": {
+                "type": "bundleIds",
+                "attributes": {
+                    "identifier": identifier,
+                    "name": name,
+                    "platform": platform
+                }
+            }
+        }
+        
+        try:
+            result = self.make_request("POST", "bundleIds", data=data)
+            print(f"✅ Bundle ID 创建成功: {result['data']['id']}")
+            return result["data"]
+        except Exception as e:
+            print(f"❌ Bundle ID 创建失败: {e}")
+            raise
+    
+    def get_or_create_bundle_id(self, identifier, name):
+        """
+        获取或创建 Bundle ID
+        
+        Args:
+            identifier: Bundle ID 标识符
+            name: 显示名称
+            
+        Returns:
+            Bundle ID 信息
+        """
+        bundle_id = self.find_bundle_id(identifier)
+        
+        if bundle_id is None:
+            print(f"📝 Bundle ID 不存在，尝试创建...")
+            bundle_id = self.create_bundle_id(identifier, name)
+        
+        return bundle_id
+    
     def create_app(self, bundle_id, name, primary_locale, sku):
         """
         创建新应用
+        
+        注意：创建应用前，必须先确保 Bundle ID 已在 Apple Developer Portal 中注册
         
         Args:
             bundle_id: Bundle ID
@@ -140,6 +222,24 @@ class AppStoreConnectAPI:
         Returns:
             创建的应用信息
         """
+        print()
+        print("=" * 60)
+        print("步骤 1/2: 检查/注册 Bundle ID")
+        print("=" * 60)
+        
+        # 先确保 Bundle ID 存在
+        try:
+            self.get_or_create_bundle_id(bundle_id, name)
+        except Exception as e:
+            print(f"⚠️  Bundle ID 处理失败: {e}")
+            print(f"提示: 请在 Apple Developer Portal 手动注册 Bundle ID")
+            print(f"     或检查 API 密钥是否有 'Admin' 或 'Account Holder' 权限")
+            # 继续尝试创建应用（Bundle ID 可能已在开发者门户手动创建）
+        
+        print()
+        print("=" * 60)
+        print("步骤 2/2: 创建 App Store Connect 应用")
+        print("=" * 60)
         print(f"🚀 创建应用: {name} ({bundle_id})")
         
         data = {
