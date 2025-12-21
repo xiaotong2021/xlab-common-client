@@ -469,6 +469,218 @@ class AppStoreConnectAPI:
             
             print(f"✅ 应用元数据已更新: {locale}")
     
+    def update_app_categories(self, app_id, primary_category, secondary_category=None):
+        """
+        更新应用类别
+        
+        Args:
+            app_id: 应用 ID
+            primary_category: 主要类别 ID
+            secondary_category: 次要类别 ID（可选）
+        """
+        print(f"📂 更新应用类别")
+        
+        update_data = {
+            "data": {
+                "type": "apps",
+                "id": app_id,
+                "relationships": {
+                    "primaryCategory": {
+                        "data": {
+                            "type": "appCategories",
+                            "id": primary_category
+                        }
+                    }
+                }
+            }
+        }
+        
+        if secondary_category:
+            update_data["data"]["relationships"]["secondaryCategory"] = {
+                "data": {
+                    "type": "appCategories",
+                    "id": secondary_category
+                }
+            }
+        
+        try:
+            self.make_request("PATCH", f"apps/{app_id}", data=update_data)
+            print(f"✅ 应用类别已更新")
+            return True
+        except Exception as e:
+            print(f"⚠️  应用类别更新失败: {e}")
+            return False
+    
+    def update_app_review_details(self, version_id, contact_info):
+        """
+        更新审核联系信息
+        
+        Args:
+            version_id: 版本 ID
+            contact_info: 联系信息字典，包含：
+                - firstName: 名
+                - lastName: 姓
+                - phoneNumber: 电话号码
+                - emailAddress: 邮箱地址
+                - demoAccountName: 演示账号（可选）
+                - demoAccountPassword: 演示密码（可选）
+                - demoAccountRequired: 是否需要演示账号（可选）
+                - notes: 备注（可选）
+        """
+        print(f"📞 更新审核联系信息")
+        
+        # 查找现有的审核详情
+        try:
+            result = self.make_request("GET", f"appStoreVersions/{version_id}/appStoreReviewDetail")
+            
+            if result and result.get("data"):
+                # 更新现有的审核详情
+                review_detail_id = result["data"]["id"]
+                
+                update_data = {
+                    "data": {
+                        "type": "appStoreReviewDetails",
+                        "id": review_detail_id,
+                        "attributes": {}
+                    }
+                }
+                
+                # 添加联系信息
+                if "firstName" in contact_info:
+                    update_data["data"]["attributes"]["contactFirstName"] = contact_info["firstName"]
+                if "lastName" in contact_info:
+                    update_data["data"]["attributes"]["contactLastName"] = contact_info["lastName"]
+                if "phoneNumber" in contact_info:
+                    update_data["data"]["attributes"]["contactPhone"] = contact_info["phoneNumber"]
+                if "emailAddress" in contact_info:
+                    update_data["data"]["attributes"]["contactEmail"] = contact_info["emailAddress"]
+                if "demoAccountName" in contact_info:
+                    update_data["data"]["attributes"]["demoAccountName"] = contact_info["demoAccountName"]
+                if "demoAccountPassword" in contact_info:
+                    update_data["data"]["attributes"]["demoAccountPassword"] = contact_info["demoAccountPassword"]
+                if "demoAccountRequired" in contact_info:
+                    update_data["data"]["attributes"]["demoAccountRequired"] = contact_info["demoAccountRequired"]
+                if "notes" in contact_info:
+                    update_data["data"]["attributes"]["notes"] = contact_info["notes"]
+                
+                self.make_request("PATCH", f"appStoreReviewDetails/{review_detail_id}", data=update_data)
+            else:
+                # 创建新的审核详情
+                create_data = {
+                    "data": {
+                        "type": "appStoreReviewDetails",
+                        "attributes": {},
+                        "relationships": {
+                            "appStoreVersion": {
+                                "data": {
+                                    "type": "appStoreVersions",
+                                    "id": version_id
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                # 添加联系信息
+                if "firstName" in contact_info:
+                    create_data["data"]["attributes"]["contactFirstName"] = contact_info["firstName"]
+                if "lastName" in contact_info:
+                    create_data["data"]["attributes"]["contactLastName"] = contact_info["lastName"]
+                if "phoneNumber" in contact_info:
+                    create_data["data"]["attributes"]["contactPhone"] = contact_info["phoneNumber"]
+                if "emailAddress" in contact_info:
+                    create_data["data"]["attributes"]["contactEmail"] = contact_info["emailAddress"]
+                if "demoAccountName" in contact_info:
+                    create_data["data"]["attributes"]["demoAccountName"] = contact_info["demoAccountName"]
+                if "demoAccountPassword" in contact_info:
+                    create_data["data"]["attributes"]["demoAccountPassword"] = contact_info["demoAccountPassword"]
+                if "demoAccountRequired" in contact_info:
+                    create_data["data"]["attributes"]["demoAccountRequired"] = contact_info["demoAccountRequired"]
+                if "notes" in contact_info:
+                    create_data["data"]["attributes"]["notes"] = contact_info["notes"]
+                
+                self.make_request("POST", "appStoreReviewDetails", data=create_data)
+            
+            print(f"✅ 审核联系信息已更新")
+            return True
+        except Exception as e:
+            print(f"⚠️  审核联系信息更新失败: {e}")
+            return False
+    
+    def attach_build_to_version(self, version_id, build_number=None):
+        """
+        将构建版本关联到 App Store 版本
+        
+        Args:
+            version_id: 版本 ID
+            build_number: 构建号（如果为 None，则使用最新的构建）
+        """
+        print(f"🔗 关联构建版本到 App Store 版本")
+        
+        try:
+            # 获取版本信息以获取 app_id
+            version_result = self.make_request("GET", f"appStoreVersions/{version_id}")
+            if not version_result or not version_result.get("data"):
+                print(f"⚠️  无法获取版本信息")
+                return False
+            
+            # 从版本的 relationships 中获取 app
+            app_link = version_result["data"]["relationships"]["app"]["links"]["related"]
+            app_id = app_link.split("/")[-1]
+            
+            # 获取可用的构建列表
+            builds_result = self.make_request("GET", f"apps/{app_id}/builds", params={"limit": 10})
+            
+            if not builds_result or not builds_result.get("data"):
+                print(f"⚠️  未找到可用的构建")
+                print(f"提示: 请确保已通过 TestFlight 上传构建")
+                return False
+            
+            # 选择构建
+            selected_build = None
+            if build_number:
+                # 查找指定的构建号
+                for build in builds_result["data"]:
+                    if build["attributes"].get("version") == build_number:
+                        selected_build = build
+                        break
+                if not selected_build:
+                    print(f"⚠️  未找到构建号 {build_number}")
+                    return False
+            else:
+                # 使用最新的构建
+                selected_build = builds_result["data"][0]
+            
+            build_id = selected_build["id"]
+            build_version = selected_build["attributes"].get("version")
+            
+            print(f"📦 选择构建: {build_version} (ID: {build_id})")
+            
+            # 关联构建到版本
+            update_data = {
+                "data": {
+                    "type": "appStoreVersions",
+                    "id": version_id,
+                    "relationships": {
+                        "build": {
+                            "data": {
+                                "type": "builds",
+                                "id": build_id
+                            }
+                        }
+                    }
+                }
+            }
+            
+            self.make_request("PATCH", f"appStoreVersions/{version_id}", data=update_data)
+            print(f"✅ 构建已关联到版本")
+            return True
+            
+        except Exception as e:
+            print(f"⚠️  关联构建失败: {e}")
+            print(f"提示: 这可能是因为构建还在处理中，或者版本状态不允许关联构建")
+            return False
+    
     def upload_screenshot(self, version_localization_id, screenshot_path, display_type):
         """
         上传截图
@@ -833,6 +1045,9 @@ def main():
         "version_localizations": {},
         "app_info_localizations": {},
         "screenshots": {},
+        "review_contact": None,
+        "category": None,
+        "build_attached": False,
         "errors": []
     }
     
@@ -942,6 +1157,70 @@ def main():
                 print(f"⚠️  应用元数据更新异常: {e}")
                 print("提示: 继续后续流程...")
                 update_summary["errors"].append(f"应用元数据更新异常: {str(e)}")
+        # 更新审核联系信息
+        if version_id:
+            contact_info = {}
+            # 支持两种命名方式：reviewContactXxx 和 appReviewXxx
+            if config.get('reviewContactFirstName') or config.get('appReviewFirstName'):
+                contact_info['firstName'] = config.get('reviewContactFirstName') or config.get('appReviewFirstName')
+            if config.get('reviewContactLastName') or config.get('appReviewLastName'):
+                contact_info['lastName'] = config.get('reviewContactLastName') or config.get('appReviewLastName')
+            if config.get('reviewContactPhone') or config.get('appReviewPhone'):
+                contact_info['phoneNumber'] = config.get('reviewContactPhone') or config.get('appReviewPhone')
+            if config.get('reviewContactEmail') or config.get('appReviewEmail'):
+                contact_info['emailAddress'] = config.get('reviewContactEmail') or config.get('appReviewEmail')
+            if config.get('reviewNotes') or config.get('appReviewNotes'):
+                contact_info['notes'] = config.get('reviewNotes') or config.get('appReviewNotes')
+            if config.get('appDemoAccountName'):
+                contact_info['demoAccountName'] = config['appDemoAccountName']
+            if config.get('appDemoAccountPassword'):
+                contact_info['demoAccountPassword'] = config['appDemoAccountPassword']
+            if config.get('appDemoAccountRequired'):
+                contact_info['demoAccountRequired'] = config['appDemoAccountRequired'].lower() == 'true'
+            
+            if contact_info:
+                print()
+                try:
+                    success = api.update_app_review_details(version_id, contact_info)
+                    if success:
+                        update_summary["review_contact"] = contact_info
+                    else:
+                        update_summary["errors"].append("审核联系信息更新失败")
+                except Exception as e:
+                    print(f"⚠️  审核联系信息更新异常: {e}")
+                    update_summary["errors"].append(f"审核联系信息更新异常: {str(e)}")
+        
+        # 更新应用类别
+        if config.get('appCategoryId'):
+            print()
+            try:
+                primary_category = config['appCategoryId']
+                secondary_category = config.get('appSecondaryCategoryId')
+                success = api.update_app_categories(app_id, primary_category, secondary_category)
+                if success:
+                    update_summary["category"] = {
+                        "primary": primary_category,
+                        "secondary": secondary_category
+                    }
+                else:
+                    update_summary["errors"].append("应用类别更新失败")
+            except Exception as e:
+                print(f"⚠️  应用类别更新异常: {e}")
+                update_summary["errors"].append(f"应用类别更新异常: {str(e)}")
+        
+        # 关联构建版本
+        if version_id:
+            print()
+            try:
+                build_number = config.get('appBuildNumber')  # 如果不指定，会使用最新的构建
+                success = api.attach_build_to_version(version_id, build_number)
+                if success:
+                    update_summary["build_attached"] = True
+                else:
+                    update_summary["errors"].append("构建版本关联失败")
+            except Exception as e:
+                print(f"⚠️  构建版本关联异常: {e}")
+                update_summary["errors"].append(f"构建版本关联异常: {str(e)}")
     else:
         print()
         print("ℹ️  元数据更新已禁用 (enableUpdateMetadata=false)")
@@ -1078,6 +1357,35 @@ def main():
         if enable_screenshots:
             print("⚠️  截图: 未上传")
             print()
+    
+    # 审核联系信息
+    if update_summary.get('review_contact'):
+        print("📞 审核联系信息:")
+        contact = update_summary['review_contact']
+        if contact.get('firstName') or contact.get('lastName'):
+            print(f"  ✓ 联系人: {contact.get('firstName', '')} {contact.get('lastName', '')}")
+        if contact.get('emailAddress'):
+            print(f"  ✓ 邮箱: {contact['emailAddress']}")
+        if contact.get('phoneNumber'):
+            print(f"  ✓ 电话: {contact['phoneNumber']}")
+        if contact.get('notes'):
+            notes_preview = contact['notes'][:60] + "..." if len(contact['notes']) > 60 else contact['notes']
+            print(f"  ✓ 备注: {notes_preview}")
+        print()
+    
+    # 应用类别
+    if update_summary.get('category'):
+        print("📂 应用类别:")
+        print(f"  ✓ 主要类别 ID: {update_summary['category']['primary']}")
+        if update_summary['category'].get('secondary'):
+            print(f"  ✓ 次要类别 ID: {update_summary['category']['secondary']}")
+        print()
+    
+    # 构建版本关联
+    if update_summary.get('build_attached'):
+        print("📦 构建版本:")
+        print(f"  ✓ 已关联最新构建到版本")
+        print()
     
     # 错误和警告
     if update_summary['errors']:
