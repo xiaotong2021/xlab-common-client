@@ -256,7 +256,25 @@ class AppStoreConnectAPI:
                 except Exception as e:
                     print(f"⚠️  创建版本失败: {e}")
                     print(f"提示: 版本可能已存在或应用状态不允许创建新版本")
-                    return None
+                    
+                    # 尝试再次查找版本（可能版本在创建失败前已存在）
+                    print(f"🔍 尝试查找现有版本...")
+                    try:
+                        result = self.make_request("GET", f"apps/{app_id}/appStoreVersions")
+                        if result and result.get("data"):
+                            # 查找所有状态的版本
+                            for version in result["data"]:
+                                if version["attributes"].get("versionString") == version_string:
+                                    version_id = version["id"]
+                                    version_state = version["attributes"].get("appStoreState", "UNKNOWN")
+                                    print(f"✅ 找到现有版本: {version_id} (状态: {version_state})")
+                                    break
+                    except Exception as retry_error:
+                        print(f"⚠️  查找版本失败: {retry_error}")
+                    
+                    if not version_id:
+                        print(f"❌ 无法获取版本信息，跳过版本更新")
+                        return None
             
             # 更新本地化信息
             if version_id:
@@ -431,6 +449,11 @@ class AppStoreConnectAPI:
                 self.make_request("PATCH", f"appInfoLocalizations/{loc_id}", data=update_data)
             else:
                 # 创建新本地化
+                # 注意：创建时 name 属性是必需的
+                if "name" not in data["data"]["attributes"]:
+                    print(f"⚠️  创建本地化时缺少 name 属性，跳过: {locale}")
+                    continue
+                
                 data["data"]["relationships"] = {
                     "appInfo": {
                         "data": {
@@ -790,8 +813,11 @@ def main():
             
             locale_metadata = {}
             
+            # name 是必需的，优先使用特定语言的 appDisplayName，否则使用通用的
             if config.get(f'appDisplayName_{locale_prefix}'):
                 locale_metadata['name'] = config[f'appDisplayName_{locale_prefix}']
+            elif config.get('appDisplayName'):
+                locale_metadata['name'] = config['appDisplayName']
             
             if config.get('appPrivacyPolicyUrl'):
                 locale_metadata['privacyPolicyUrl'] = config['appPrivacyPolicyUrl']
@@ -801,8 +827,12 @@ def main():
             elif config.get('appSubtitle'):
                 locale_metadata['subtitle'] = config['appSubtitle']
             
-            if locale_metadata:
+            # 只有当有 name 属性时才添加到 locale_data（因为创建时 name 是必需的）
+            if locale_metadata and 'name' in locale_metadata:
                 metadata["locale_data"][locale] = locale_metadata
+            elif locale_metadata:
+                print(f"⚠️  跳过本地化 {locale}，缺少应用名称 (appDisplayName)")
+
         
         if metadata["locale_data"]:
             try:
@@ -834,18 +864,24 @@ def main():
                 screenshot_mapping = json.load(f)
             
             # 获取版本 ID（通过 app 的关系）
+            print(f"🔍 查找版本 {app_version} 用于上传截图...")
             result = api.make_request("GET", f"apps/{app_id}/appStoreVersions")
             
             version_id = None
+            version_state = None
             if result and result.get("data"):
-                # 查找匹配的版本
+                # 查找匹配的版本（任何状态）
                 for version in result["data"]:
-                    if (version["attributes"].get("versionString") == app_version and
-                        version["attributes"].get("platform") == "IOS"):
+                    if version["attributes"].get("versionString") == app_version:
                         version_id = version["id"]
+                        version_state = version["attributes"].get("appStoreState", "UNKNOWN")
+                        print(f"✅ 找到版本: {version_id} (状态: {version_state})")
                         break
             
-            if version_id:
+            if not version_id:
+                print(f"⚠️  未找到版本 {app_version}，跳过截图上传")
+                print(f"提示: 请确保版本已在 App Store Connect 中创建")
+            elif version_id:
                 
                 # 将截图文件名映射转换为完整路径映射
                 screenshot_files = {}
@@ -859,8 +895,6 @@ def main():
                 except Exception as e:
                     print(f"⚠️  截图上传失败: {e}")
                     print(f"提示: 截图上传失败不影响应用创建，可以稍后在 App Store Connect 手动上传")
-            else:
-                print(f"⚠️  未找到版本信息，跳过截图上传")
         else:
             print(f"⚠️  未找到截图文件: {screenshots_json}")
             print(f"提示: 如需上传截图，请先运行 generate_app_screenshots.py 生成截图")
