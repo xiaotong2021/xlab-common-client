@@ -438,25 +438,6 @@ jobs:
             mkdir -p ./artifacts/screenshots
             cp -r screenshots/$APP_NAME ./artifacts/screenshots/
             
-            # 创建截图说明文件
-            cat > ./artifacts/screenshots/README.txt <<'HEREDOC'
-App Store 截图
-=============
-
-这些截图是从 splashScreen 图片自动生成的，符合 App Store 要求的尺寸。
-
-设备类型和尺寸:
-- iPhone 6.7: 1290 x 2796 (iPhone 14/15 Pro Max)
-- iPhone 6.5: 1242 x 2688 (iPhone 11 Pro Max, XS Max)
-- iPhone 5.5: 1242 x 2208 (iPhone 8 Plus)
-- iPad 12.9 (3rd): 2048 x 2732 (iPad Pro 12.9" 第3代及以后)
-
-使用说明:
-1. 这些截图可以直接用于 App Store Connect
-2. 建议准备 3-5 张展示不同功能的截图
-3. 手动在 App Store Connect 上传更多截图以展示应用功能
-HEREDOC
-            
             echo "✅ 截图已复制到 artifacts/screenshots/$APP_NAME"
           else
             echo "ℹ️  未找到截图目录，跳过"
