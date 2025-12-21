@@ -332,6 +332,19 @@ jobs:
           fi
         continue-on-error: true
 
+      - name: Setup App Store Connect API Key
+        run: |
+          # 创建私钥目录
+          mkdir -p ~/.appstoreconnect/private_keys
+          
+          # 解码 API 密钥并保存到正确的位置和文件名
+          echo "${{ secrets.APP_STORE_API_KEY_BASE64 }}" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_API_KEY_ID }}.p8
+          
+          # 设置文件权限
+          chmod 600 ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_API_KEY_ID }}.p8
+          
+          echo "✅ API 密钥已准备"
+
       - name: Check and setup App Store Connect
         run: |
           # 读取配置
@@ -341,15 +354,6 @@ jobs:
           
           if [ "$ENABLE_ASC" = "true" ]; then
             echo "🔄 App Store Connect 检查和配置已启用"
-            
-            # 创建私钥目录
-            mkdir -p ~/.appstoreconnect/private_keys
-            
-            # 解码 API 密钥并保存到正确的位置和文件名
-            echo "${{ secrets.APP_STORE_API_KEY_BASE64 }}" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_API_KEY_ID }}.p8
-            
-            # 设置文件权限
-            chmod 600 ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_API_KEY_ID }}.p8
             
             # 运行 App Store Connect 检查脚本
             # 这将检查应用是否存在，如果不存在则创建，并上传元数据和截图
