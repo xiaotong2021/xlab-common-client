@@ -127,199 +127,6 @@ class AppStoreConnectAPI:
             print(f"❌ 未找到应用: {bundle_id}")
             return None
     
-    def find_bundle_id(self, identifier):
-        """
-        查找 Bundle ID
-        
-        Args:
-            identifier: Bundle ID 标识符 (如 com.example.app)
-            
-        Returns:
-            Bundle ID 信息，如果不存在则返回 None
-        """
-        print(f"🔍 查找 Bundle ID: {identifier}")
-        
-        try:
-            # 使用 filter 查询 Bundle ID
-            params = {"filter[identifier]": identifier}
-            result = self.make_request("GET", "bundleIds", params=params)
-            
-            if result and result.get("data") and len(result["data"]) > 0:
-                bundle_id_info = result["data"][0]
-                print(f"✅ 找到 Bundle ID: {bundle_id_info['id']}")
-                return bundle_id_info
-            else:
-                print(f"❌ 未找到 Bundle ID: {identifier}")
-                return None
-        except Exception as e:
-            print(f"⚠️  查找 Bundle ID 失败: {e}")
-            return None
-    
-    def sanitize_bundle_id_name(self, name, identifier):
-        """
-        清理 Bundle ID 名称，确保只包含有效字符
-        
-        Bundle ID name 只能包含: 字母、数字、空格、连字符、下划线
-        不能包含中文等特殊字符
-        
-        Args:
-            name: 原始名称
-            identifier: Bundle ID 标识符（作为后备）
-            
-        Returns:
-            清理后的有效名称
-        """
-        import re
-        
-        # 检查是否包含非 ASCII 字符（中文等）
-        if not name.isascii():
-            # 尝试从 Bundle ID 提取名称
-            # 如 com.xlab.psygym -> Psygym
-            parts = identifier.split('.')
-            if len(parts) > 0:
-                # 取最后一部分，首字母大写
-                name = parts[-1].capitalize()
-                print(f"ℹ️  Bundle ID 名称包含非英文字符，使用从 Bundle ID 提取的名称: {name}")
-        
-        # 只保留字母、数字、空格、连字符、下划线
-        sanitized = re.sub(r'[^a-zA-Z0-9\s\-_]', '', name)
-        
-        # 确保不为空
-        if not sanitized:
-            sanitized = "App"
-        
-        return sanitized.strip()
-    
-    def create_bundle_id(self, identifier, name, platform="IOS"):
-        """
-        创建 Bundle ID
-        
-        Args:
-            identifier: Bundle ID 标识符 (如 com.example.app)
-            name: 显示名称（可以包含中文，会自动清理）
-            platform: 平台 (IOS, MAC_OS)
-            
-        Returns:
-            创建的 Bundle ID 信息
-        """
-        # 清理名称，确保只包含有效字符
-        sanitized_name = self.sanitize_bundle_id_name(name, identifier)
-        
-        print(f"🆔 创建 Bundle ID: {sanitized_name} ({identifier})")
-        
-        data = {
-            "data": {
-                "type": "bundleIds",
-                "attributes": {
-                    "identifier": identifier,
-                    "name": sanitized_name,
-                    "platform": platform
-                }
-            }
-        }
-        
-        try:
-            result = self.make_request("POST", "bundleIds", data=data)
-            print(f"✅ Bundle ID 创建成功: {result['data']['id']}")
-            return result["data"]
-        except Exception as e:
-            print(f"❌ Bundle ID 创建失败: {e}")
-            raise
-    
-    def get_or_create_bundle_id(self, identifier, name):
-        """
-        获取或创建 Bundle ID
-        
-        Args:
-            identifier: Bundle ID 标识符
-            name: 显示名称
-            
-        Returns:
-            Bundle ID 信息
-        """
-        bundle_id = self.find_bundle_id(identifier)
-        
-        if bundle_id is None:
-            print(f"📝 Bundle ID 不存在，尝试创建...")
-            bundle_id = self.create_bundle_id(identifier, name)
-        
-        return bundle_id
-    
-    def create_app(self, bundle_id, name, primary_locale, sku):
-        """
-        创建新应用
-        
-        注意：创建应用前，必须先确保 Bundle ID 已在 Apple Developer Portal 中注册
-        
-        Args:
-            bundle_id: Bundle ID
-            name: 应用名称
-            primary_locale: 主要语言 (如: zh-Hans, en-US)
-            sku: SKU (唯一标识符)
-            
-        Returns:
-            创建的应用信息
-        """
-        print()
-        print("=" * 60)
-        print("步骤 1/2: 检查/注册 Bundle ID")
-        print("=" * 60)
-        
-        # 先确保 Bundle ID 存在
-        try:
-            self.get_or_create_bundle_id(bundle_id, name)
-        except Exception as e:
-            print(f"⚠️  Bundle ID 处理失败: {e}")
-            print(f"提示: 请在 Apple Developer Portal 手动注册 Bundle ID")
-            print(f"     或检查 API 密钥是否有 'Admin' 或 'Account Holder' 权限")
-            # 继续尝试创建应用（Bundle ID 可能已在开发者门户手动创建）
-        
-        print()
-        print("=" * 60)
-        print("步骤 2/2: 创建 App Store Connect 应用")
-        print("=" * 60)
-        print(f"🚀 创建应用: {name} ({bundle_id})")
-        
-        data = {
-            "data": {
-                "type": "apps",
-                "attributes": {
-                    "bundleId": bundle_id,
-                    "name": name,
-                    "primaryLocale": primary_locale,
-                    "sku": sku
-                }
-            }
-        }
-        
-        try:
-            result = self.make_request("POST", "apps", data=data)
-            print(f"✅ 应用创建成功!")
-            return result["data"]
-        except Exception as e:
-            print(f"❌ 应用创建失败: {e}")
-            raise
-    
-    def get_or_create_app(self, bundle_id, name, primary_locale, sku):
-        """
-        获取或创建应用
-        
-        Args:
-            bundle_id: Bundle ID
-            name: 应用名称
-            primary_locale: 主要语言
-            sku: SKU
-            
-        Returns:
-            应用信息
-        """
-        app = self.find_app_by_bundle_id(bundle_id)
-        
-        if app is None:
-            app = self.create_app(bundle_id, name, primary_locale, sku)
-        
-        return app
-    
     def get_app_info(self, app_id):
         """
         获取应用详细信息
@@ -849,38 +656,49 @@ def main():
     api = AppStoreConnectAPI(api_key_id, api_issuer_id, api_key_path)
     
     # 检查配置
-    enable_create_app = config.get('enableCreateApp', 'true').lower() == 'true'
     enable_update_metadata = config.get('enableUpdateMetadata', 'true').lower() == 'true'
     
-    print(f"配置: enableCreateApp={enable_create_app}, enableUpdateMetadata={enable_update_metadata}")
+    print(f"配置: enableUpdateMetadata={enable_update_metadata}")
     print()
     
-    # 获取或创建应用
+    # 查找应用（只查找，不创建）
     primary_locale = config.get('iosPrimaryLocale', 'zh-Hans')
-    
-    # 首先尝试查找应用
     app = api.find_app_by_bundle_id(bundle_id)
     
     if app is None:
         # 应用不存在
-        if enable_create_app:
-            print(f"📱 应用不存在，尝试创建...")
-            try:
-                # 创建应用时使用英文名称（Bundle ID 名称不支持中文）
-                app = api.create_app(bundle_id, app_display_name_en, primary_locale, sku)
-            except Exception as e:
-                print(f"❌ 应用创建失败: {e}")
-                print(f"提示: 请检查 Bundle ID 是否已被使用，或在 App Store Connect 手动创建应用")
-                sys.exit(1)
-        else:
-            print(f"❌ 应用不存在，且 enableCreateApp=false")
-            print(f"提示: 请在 App Store Connect 手动创建应用，或设置 enableCreateApp=true")
-            sys.exit(1)
+        print(f"❌ 应用不存在: {bundle_id}")
+        print()
+        print("=" * 60)
+        print("⚠️  请先在 App Store Connect 手动创建应用")
+        print("=" * 60)
+        print()
+        print("操作步骤：")
+        print()
+        print("1. 登录 App Store Connect")
+        print("   https://appstoreconnect.apple.com/")
+        print()
+        print("2. 点击「我的 App」→「+」→「新建 App」")
+        print()
+        print("3. 填写应用信息：")
+        print(f"   - 平台: iOS")
+        print(f"   - 名称: {app_display_name}")
+        print(f"   - 主要语言: {primary_locale}")
+        print(f"   - Bundle ID: {bundle_id}")
+        print(f"   - SKU: {sku}")
+        print()
+        print("4. 创建完成后，重新运行构建")
+        print()
+        print("=" * 60)
+        print()
+        print("注意: Apple 不支持通过 API 创建新应用")
+        print("=" * 60)
+        sys.exit(1)
     
     app_id = app['id']
     
     print()
-    print(f"✅ 应用准备完成 (ID: {app_id})")
+    print(f"✅ 找到应用 (ID: {app_id})")
     print()
     
     # 准备本地化数据
