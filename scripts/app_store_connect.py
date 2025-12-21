@@ -310,8 +310,30 @@ class AppStoreConnectAPI:
             if result and result.get("data"):
                 # 更新现有本地化
                 loc_id = result["data"][0]["id"]
-                localization_data["data"]["id"] = loc_id
-                self.make_request("PATCH", f"appStoreVersionLocalizations/{loc_id}", data=localization_data)
+                # 注意：UPDATE 请求中不能包含 locale 属性
+                update_data = {
+                    "data": {
+                        "type": "appStoreVersionLocalizations",
+                        "id": loc_id,
+                        "attributes": {}
+                    }
+                }
+                
+                # 只包含需要更新的属性（不包括 locale）
+                if "description" in data:
+                    update_data["data"]["attributes"]["description"] = data["description"]
+                if "keywords" in data:
+                    update_data["data"]["attributes"]["keywords"] = data["keywords"]
+                if "releaseNotes" in data:
+                    update_data["data"]["attributes"]["whatsNew"] = data["releaseNotes"]
+                if "supportUrl" in data:
+                    update_data["data"]["attributes"]["supportUrl"] = data["supportUrl"]
+                if "marketingUrl" in data:
+                    update_data["data"]["attributes"]["marketingUrl"] = data["marketingUrl"]
+                if "promotionalText" in data:
+                    update_data["data"]["attributes"]["promotionalText"] = data["promotionalText"]
+                
+                self.make_request("PATCH", f"appStoreVersionLocalizations/{loc_id}", data=update_data)
             else:
                 # 创建新本地化
                 localization_data["data"]["relationships"] = {
@@ -387,8 +409,26 @@ class AppStoreConnectAPI:
             
             if loc_id:
                 # 更新现有本地化
-                data["data"]["id"] = loc_id
-                self.make_request("PATCH", f"appInfoLocalizations/{loc_id}", data=data)
+                # 注意：UPDATE 请求中不能包含 locale 属性
+                update_data = {
+                    "data": {
+                        "type": "appInfoLocalizations",
+                        "id": loc_id,
+                        "attributes": {}
+                    }
+                }
+                
+                # 只包含需要更新的属性（不包括 locale）
+                if "name" in locale_metadata:
+                    update_data["data"]["attributes"]["name"] = locale_metadata["name"]
+                if "privacyPolicyText" in locale_metadata:
+                    update_data["data"]["attributes"]["privacyPolicyText"] = locale_metadata["privacyPolicyText"]
+                if "privacyPolicyUrl" in locale_metadata:
+                    update_data["data"]["attributes"]["privacyPolicyUrl"] = locale_metadata["privacyPolicyUrl"]
+                if "subtitle" in locale_metadata:
+                    update_data["data"]["attributes"]["subtitle"] = locale_metadata["subtitle"]
+                
+                self.make_request("PATCH", f"appInfoLocalizations/{loc_id}", data=update_data)
             else:
                 # 创建新本地化
                 data["data"]["relationships"] = {
@@ -640,9 +680,34 @@ def main():
     # 初始化 API 客户端
     api = AppStoreConnectAPI(api_key_id, api_issuer_id, api_key_path)
     
+    # 检查配置
+    enable_create_app = config.get('enableCreateApp', 'true').lower() == 'true'
+    enable_update_metadata = config.get('enableUpdateMetadata', 'true').lower() == 'true'
+    
+    print(f"配置: enableCreateApp={enable_create_app}, enableUpdateMetadata={enable_update_metadata}")
+    print()
+    
     # 获取或创建应用
     primary_locale = config.get('iosPrimaryLocale', 'zh-Hans')
-    app = api.get_or_create_app(bundle_id, app_display_name, primary_locale, sku)
+    
+    # 首先尝试查找应用
+    app = api.find_app_by_bundle_id(bundle_id)
+    
+    if app is None:
+        # 应用不存在
+        if enable_create_app:
+            print(f"📱 应用不存在，尝试创建...")
+            try:
+                app = api.create_app(bundle_id, app_display_name, primary_locale, sku)
+            except Exception as e:
+                print(f"❌ 应用创建失败: {e}")
+                print(f"提示: 请检查 Bundle ID 是否已被使用，或在 App Store Connect 手动创建应用")
+                sys.exit(1)
+        else:
+            print(f"❌ 应用不存在，且 enableCreateApp=false")
+            print(f"提示: 请在 App Store Connect 手动创建应用，或设置 enableCreateApp=true")
+            sys.exit(1)
+    
     app_id = app['id']
     
     print()
@@ -696,42 +761,59 @@ def main():
         if locale_info:
             locale_data[locale] = locale_info
     
-    # 更新版本信息
-    if locale_data:
-        version_result = api.create_or_update_app_info(app_id, app_version, locale_data)
-        if not version_result:
-            print()
-            print("⚠️  版本信息更新失败，但不影响后续流程")
-            print("提示: 可以在 App Store Connect 手动添加版本信息")
-    
-    # 更新应用元数据
-    metadata = {
-        "locales": locales,
-        "locale_data": {}
-    }
-    
-    for locale in locales:
-        locale = locale.strip()
-        locale_prefix = locale.replace('-', '_')
+    # 根据配置决定是否更新元数据
+    if enable_update_metadata:
+        print()
+        print("🔄 更新元数据已启用")
         
-        locale_metadata = {}
+        # 更新版本信息
+        if locale_data:
+            try:
+                version_result = api.create_or_update_app_info(app_id, app_version, locale_data)
+                if not version_result:
+                    print()
+                    print("⚠️  版本信息更新失败，但不影响后续流程")
+                    print("提示: 可以在 App Store Connect 手动添加版本信息")
+            except Exception as e:
+                print(f"⚠️  版本信息更新异常: {e}")
+                print("提示: 继续后续流程...")
         
-        if config.get(f'appDisplayName_{locale_prefix}'):
-            locale_metadata['name'] = config[f'appDisplayName_{locale_prefix}']
+        # 更新应用元数据
+        metadata = {
+            "locales": locales,
+            "locale_data": {}
+        }
         
-        if config.get('appPrivacyPolicyUrl'):
-            locale_metadata['privacyPolicyUrl'] = config['appPrivacyPolicyUrl']
+        for locale in locales:
+            locale = locale.strip()
+            locale_prefix = locale.replace('-', '_')
+            
+            locale_metadata = {}
+            
+            if config.get(f'appDisplayName_{locale_prefix}'):
+                locale_metadata['name'] = config[f'appDisplayName_{locale_prefix}']
+            
+            if config.get('appPrivacyPolicyUrl'):
+                locale_metadata['privacyPolicyUrl'] = config['appPrivacyPolicyUrl']
+            
+            if config.get(f'appSubtitle_{locale_prefix}'):
+                locale_metadata['subtitle'] = config[f'appSubtitle_{locale_prefix}']
+            elif config.get('appSubtitle'):
+                locale_metadata['subtitle'] = config['appSubtitle']
+            
+            if locale_metadata:
+                metadata["locale_data"][locale] = locale_metadata
         
-        if config.get(f'appSubtitle_{locale_prefix}'):
-            locale_metadata['subtitle'] = config[f'appSubtitle_{locale_prefix}']
-        elif config.get('appSubtitle'):
-            locale_metadata['subtitle'] = config['appSubtitle']
-        
-        if locale_metadata:
-            metadata["locale_data"][locale] = locale_metadata
-    
-    if metadata["locale_data"]:
-        api.update_app_info_metadata(app_id, metadata)
+        if metadata["locale_data"]:
+            try:
+                api.update_app_info_metadata(app_id, metadata)
+            except Exception as e:
+                print(f"⚠️  应用元数据更新异常: {e}")
+                print("提示: 继续后续流程...")
+    else:
+        print()
+        print("ℹ️  元数据更新已禁用 (enableUpdateMetadata=false)")
+        print("提示: 如需更新应用元数据，请在 app.cfg 中设置 enableUpdateMetadata=true")
     
     # 上传截图（如果启用）
     enable_screenshots = config.get('enableScreenshotUpload', 'false').lower() == 'true'
