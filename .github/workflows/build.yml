@@ -345,28 +345,6 @@ jobs:
           
           echo "✅ API 密钥已准备"
 
-      - name: Check and setup App Store Connect
-        run: |
-          # 读取配置
-          APP_NAME=$(grep 'appName=' assets/build.app | cut -d'=' -f2)
-          CONFIG_FILE="assets/$APP_NAME/app.cfg"
-          ENABLE_ASC=$(grep '^enableAppStoreConnect=' $CONFIG_FILE | cut -d'=' -f2 | tr '[:upper:]' '[:lower:]')
-          
-          if [ "$ENABLE_ASC" = "true" ]; then
-            echo "🔄 App Store Connect 检查和配置已启用"
-            
-            # 运行 App Store Connect 检查脚本
-            # 这将检查应用是否存在，如果不存在则创建，并上传元数据和截图
-            python3 scripts/app_store_connect.py ${{ github.workspace }}
-          else
-            echo "ℹ️  App Store Connect 检查已禁用 (enableAppStoreConnect=false)"
-            echo "提示: 如需自动创建应用和上传元数据，请在 app.cfg 中设置 enableAppStoreConnect=true"
-          fi
-        env:
-          APP_STORE_API_KEY_ID: ${{ secrets.APP_STORE_API_KEY_ID }}
-          APP_STORE_API_ISSUER_ID: ${{ secrets.APP_STORE_API_ISSUER_ID }}
-        continue-on-error: true
-
       - name: Upload to TestFlight
         run: |
           # 上传 IPA
@@ -375,6 +353,29 @@ jobs:
             --type ios \
             --apiKey ${{ secrets.APP_STORE_API_KEY_ID }} \
             --apiIssuer ${{ secrets.APP_STORE_API_ISSUER_ID }}
+
+      - name: Update App Store Connect Metadata
+        run: |
+          # 读取配置
+          APP_NAME=$(grep 'appName=' assets/build.app | cut -d'=' -f2)
+          CONFIG_FILE="assets/$APP_NAME/app.cfg"
+          ENABLE_ASC=$(grep '^enableAppStoreConnect=' $CONFIG_FILE | cut -d'=' -f2 | tr '[:upper:]' '[:lower:]')
+          
+          if [ "$ENABLE_ASC" = "true" ]; then
+            echo "🔄 App Store Connect 元数据更新已启用"
+            echo "📝 TestFlight 上传完成，现在更新应用元数据..."
+            
+            # 运行 App Store Connect 元数据更新脚本
+            # 这将更新现有应用的元数据和截图
+            python3 scripts/app_store_connect.py ${{ github.workspace }}
+          else
+            echo "ℹ️  App Store Connect 元数据更新已禁用 (enableAppStoreConnect=false)"
+            echo "提示: 如需自动更新应用元数据，请在 app.cfg 中设置 enableAppStoreConnect=true"
+          fi
+        env:
+          APP_STORE_API_KEY_ID: ${{ secrets.APP_STORE_API_KEY_ID }}
+          APP_STORE_API_ISSUER_ID: ${{ secrets.APP_STORE_API_ISSUER_ID }}
+        continue-on-error: true
 
       - name: Upload iOS Debug App
         if: needs.prepare.outputs.need_debug == 'true'
