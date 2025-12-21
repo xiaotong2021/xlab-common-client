@@ -311,6 +311,31 @@ class ConfigBuilder:
                     print("Warning: Failed to download web content, continuing with online mode")
             else:
                 print("Warning: isWebLocal=true but loadUrl is not a valid HTTP(S) URL")
+        else:
+            # isWebLocal=false 时，确保 iOS webapp 目录存在（避免 Xcode 构建错误）
+            # 创建一个空目录和占位文件
+            ios_webapp_dir = self.ios_dir / "WebViewApp" / "webapp"
+            if ios_webapp_dir.exists():
+                shutil.rmtree(ios_webapp_dir)
+            ios_webapp_dir.mkdir(parents=True, exist_ok=True)
+            
+            # 创建一个占位文件，说明这是在线模式
+            placeholder_file = ios_webapp_dir / ".placeholder"
+            with open(placeholder_file, 'w') as f:
+                f.write("# This directory is a placeholder for isWebLocal=false mode\n")
+                f.write("# The app will load content from the URL specified in loadUrl\n")
+            
+            print(f"\nCreated placeholder webapp directory for iOS (isWebLocal=false)")
+            
+            # Android 也创建占位目录
+            android_assets_dir = self.android_dir / "app" / "src" / "main" / "assets" / "webapp"
+            if android_assets_dir.exists():
+                shutil.rmtree(android_assets_dir)
+            android_assets_dir.mkdir(parents=True, exist_ok=True)
+            placeholder_file = android_assets_dir / ".placeholder"
+            with open(placeholder_file, 'w') as f:
+                f.write("# This directory is a placeholder for isWebLocal=false mode\n")
+            print(f"Created placeholder webapp directory for Android (isWebLocal=false)")
         
         # 复制Android资源
         android_res_dir = self.android_dir / "app" / "src" / "main" / "res"
