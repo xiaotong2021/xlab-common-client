@@ -1,1 +1,1 @@
-appName=idiomApp
+appName=pgym
