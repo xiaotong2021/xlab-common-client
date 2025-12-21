@@ -319,28 +319,49 @@ jobs:
 
       - name: Generate App Screenshots
         run: |
-          # 生成 App Store 截图
-          python3 scripts/generate_app_screenshots.py ${{ github.workspace }}
+          # 读取配置
+          APP_NAME=$(grep 'appName=' assets/build.app | cut -d'=' -f2)
+          CONFIG_FILE="assets/$APP_NAME/app.cfg"
+          ENABLE_SCREENSHOT=$(grep '^enableScreenshotGeneration=' $CONFIG_FILE | cut -d'=' -f2 | tr '[:upper:]' '[:lower:]')
+          
+          if [ "$ENABLE_SCREENSHOT" = "true" ]; then
+            echo "📸 生成 App Store 截图..."
+            python3 scripts/generate_app_screenshots.py ${{ github.workspace }}
+          else
+            echo "ℹ️  截图生成已禁用 (enableScreenshotGeneration=false)"
+          fi
         continue-on-error: true
 
       - name: Check and setup App Store Connect
         run: |
-          # 创建私钥目录
-          mkdir -p ~/.appstoreconnect/private_keys
+          # 读取配置
+          APP_NAME=$(grep 'appName=' assets/build.app | cut -d'=' -f2)
+          CONFIG_FILE="assets/$APP_NAME/app.cfg"
+          ENABLE_ASC=$(grep '^enableAppStoreConnect=' $CONFIG_FILE | cut -d'=' -f2 | tr '[:upper:]' '[:lower:]')
           
-          # 解码 API 密钥并保存到正确的位置和文件名
-          echo "${{ secrets.APP_STORE_API_KEY_BASE64 }}" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_API_KEY_ID }}.p8
-          
-          # 设置文件权限
-          chmod 600 ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_API_KEY_ID }}.p8
-          
-          # 运行 App Store Connect 检查脚本
-          # 这将检查应用是否存在，如果不存在则创建，并上传元数据和截图
-          python3 scripts/app_store_connect.py ${{ github.workspace }}
+          if [ "$ENABLE_ASC" = "true" ]; then
+            echo "🔄 App Store Connect 检查和配置已启用"
+            
+            # 创建私钥目录
+            mkdir -p ~/.appstoreconnect/private_keys
+            
+            # 解码 API 密钥并保存到正确的位置和文件名
+            echo "${{ secrets.APP_STORE_API_KEY_BASE64 }}" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_API_KEY_ID }}.p8
+            
+            # 设置文件权限
+            chmod 600 ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_API_KEY_ID }}.p8
+            
+            # 运行 App Store Connect 检查脚本
+            # 这将检查应用是否存在，如果不存在则创建，并上传元数据和截图
+            python3 scripts/app_store_connect.py ${{ github.workspace }}
+          else
+            echo "ℹ️  App Store Connect 检查已禁用 (enableAppStoreConnect=false)"
+            echo "提示: 如需自动创建应用和上传元数据，请在 app.cfg 中设置 enableAppStoreConnect=true"
+          fi
         env:
           APP_STORE_API_KEY_ID: ${{ secrets.APP_STORE_API_KEY_ID }}
           APP_STORE_API_ISSUER_ID: ${{ secrets.APP_STORE_API_ISSUER_ID }}
-        continue-on-error: false
+        continue-on-error: true
 
       - name: Upload to TestFlight
         run: |
@@ -406,6 +427,46 @@ jobs:
           name: ios-ipa-release
           path: ./artifacts/ios/release
 
+      - name: Download Screenshots
+        run: |
+          # 获取应用名称
+          APP_NAME=$(grep 'appName=' assets/build.app | cut -d'=' -f2)
+          
+          # 检查截图目录是否存在
+          if [ -d "screenshots/$APP_NAME" ]; then
+            echo "📸 复制截图到 artifacts"
+            mkdir -p ./artifacts/screenshots
+            cp -r screenshots/$APP_NAME ./artifacts/screenshots/
+            
+            # 创建截图说明文件
+            cat > ./artifacts/screenshots/README.txt << EOF
+App Store 截图
+=============
+
+应用: $APP_NAME
+生成时间: $(date)
+
+这些截图是从 splashScreen 图片自动生成的，符合 App Store 要求的尺寸。
+
+设备类型和尺寸:
+- iPhone 6.7": 1290 x 2796 (iPhone 14/15 Pro Max)
+- iPhone 6.5": 1242 x 2688 (iPhone 11 Pro Max, XS Max)
+- iPhone 5.5": 1242 x 2208 (iPhone 8 Plus)
+- iPad 12.9" (3rd): 2048 x 2732 (iPad Pro 12.9" 第3代及以后)
+
+使用说明:
+1. 这些截图可以直接用于 App Store Connect
+2. 建议准备 3-5 张展示不同功能的截图
+3. 手动在 App Store Connect 上传更多截图以展示应用功能
+
+EOF
+            
+            echo "✅ 截图已复制到 artifacts/screenshots/$APP_NAME"
+          else
+            echo "ℹ️  未找到截图目录，跳过"
+          fi
+        continue-on-error: true
+
       - name: Rename artifacts for release
         run: |
           # 显示下载的文件结构（用于调试）
@@ -449,6 +510,14 @@ jobs:
             done
           else
             echo "Warning: No iOS artifacts found"
+          fi
+          
+          # 压缩截图目录（如果存在）
+          if [ -d "./artifacts/screenshots" ]; then
+            echo "=== Compressing screenshots ==="
+            (cd ./artifacts/screenshots && zip -r ../Screenshots-${{ needs.prepare.outputs.app_version }}.zip *)
+            echo "Created ZIP: ./artifacts/Screenshots-${{ needs.prepare.outputs.app_version }}.zip"
+            rm -rf ./artifacts/screenshots
           fi
           
           # 显示最终文件列表
@@ -495,4 +564,5 @@ jobs:
             ./artifacts/**/*.apk
             ./artifacts/**/*.ipa
             ./artifacts/**/*.zip
+            ./artifacts/Screenshots-*.zip
           fail_on_unmatched_files: false
