@@ -56,20 +56,6 @@ appId=com.mywebviewapp
 appVersion=1.0.0
 buildNumber=1
 
-# 构建配置
-buildAndroid=true
-buildIOS=true
-isDebug=true
-
-# WebView配置
-loadUrl=https://www.baidu.com
-enableJavaScript=true
-enableDOMStorage=true
-
-# Loading页面配置
-loadingDuration=1000
-loadingBackgroundColor=#4A90E2
-
 # 更多配置见配置文件...
 ```
 
@@ -396,6 +382,13 @@ git push origin v1.0.0
   - Web内容下载
   - 故障排除
 
+- **[证书和密钥配置指南](docs/证书和密钥配置指南.md)** ⭐️ **推荐阅读**
+  - Android Keystore 创建和配置
+  - iOS 证书和 Provisioning Profile 获取
+  - GitHub Secrets 配置完整教程
+  - 应用上架 Google Play 和 App Store 流程
+  - 常见问题解答
+
 - [Android 打包说明](docs/Android打包说明.md)
   - 生成签名密钥库
   - 配置 GitHub Secrets
@@ -407,6 +400,16 @@ git push origin v1.0.0
   - 创建证书和 Provisioning Profile
   - 配置 GitHub Secrets
   - 上架 App Store
+
+- [快速开始指南](docs/快速开始指南.md)
+  - 项目初始化
+  - 配置文件说明
+  - 本地开发调试
+
+- [配置文件说明](docs/配置文件说明.md)
+  - 完整的配置项列表
+  - 配置示例
+  - 最佳实践
 
 ---
 
