@@ -11,7 +11,7 @@ import json
 import time
 import jwt
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -38,7 +38,7 @@ class AppStoreConnectAPI:
     def generate_token(self):
         """生成 JWT Token"""
         # Token 有效期20分钟
-        exp = datetime.utcnow() + timedelta(minutes=20)
+        exp = datetime.now(timezone.utc) + timedelta(minutes=20)
         
         with open(self.private_key_path, 'r') as f:
             private_key = f.read()
@@ -62,7 +62,7 @@ class AppStoreConnectAPI:
     
     def get_token(self):
         """获取有效的 Token"""
-        if self.token is None or datetime.utcnow() >= self.token_exp:
+        if self.token is None or datetime.now(timezone.utc) >= self.token_exp:
             return self.generate_token()
         return self.token
     
@@ -214,48 +214,61 @@ class AppStoreConnectAPI:
         """
         print(f"📝 更新应用版本信息: {version_string}")
         
-        # 首先查找是否已存在该版本
-        params = {
-            "filter[app]": app_id,
-            "filter[versionString]": version_string,
-            "filter[platform]": "IOS"
-        }
-        
-        result = self.make_request("GET", "appStoreVersions", params=params)
-        
-        if result and result.get("data"):
-            # 版本已存在，更新本地化信息
-            version = result["data"][0]
-            version_id = version["id"]
-            print(f"✅ 找到现有版本: {version_id}")
-        else:
-            # 创建新版本
-            print(f"🆕 创建新版本: {version_string}")
-            data = {
-                "data": {
-                    "type": "appStoreVersions",
-                    "attributes": {
-                        "platform": "IOS",
-                        "versionString": version_string
-                    },
-                    "relationships": {
-                        "app": {
-                            "data": {
-                                "type": "apps",
-                                "id": app_id
+        # 通过 app 的关系获取版本列表
+        # 注意：不能直接查询 appStoreVersions 集合，需要通过 app 的关系
+        try:
+            result = self.make_request("GET", f"apps/{app_id}/appStoreVersions")
+            
+            # 查找匹配的版本
+            version_id = None
+            if result and result.get("data"):
+                for version in result["data"]:
+                    if (version["attributes"].get("versionString") == version_string and
+                        version["attributes"].get("platform") == "IOS"):
+                        version_id = version["id"]
+                        print(f"✅ 找到现有版本: {version_id}")
+                        break
+            
+            # 如果没找到，创建新版本
+            if not version_id:
+                print(f"🆕 创建新版本: {version_string}")
+                data = {
+                    "data": {
+                        "type": "appStoreVersions",
+                        "attributes": {
+                            "platform": "IOS",
+                            "versionString": version_string
+                        },
+                        "relationships": {
+                            "app": {
+                                "data": {
+                                    "type": "apps",
+                                    "id": app_id
+                                }
                             }
                         }
                     }
                 }
-            }
-            result = self.make_request("POST", "appStoreVersions", data=data)
-            version = result["data"]
-            version_id = version["id"]
-        
-        # 更新本地化信息
-        self.update_version_localizations(version_id, locale_data)
-        
-        return version
+                try:
+                    result = self.make_request("POST", "appStoreVersions", data=data)
+                    version_id = result["data"]["id"]
+                    print(f"✅ 版本创建成功: {version_id}")
+                except Exception as e:
+                    print(f"⚠️  创建版本失败: {e}")
+                    print(f"提示: 版本可能已存在或应用状态不允许创建新版本")
+                    return None
+            
+            # 更新本地化信息
+            if version_id:
+                self.update_version_localizations(version_id, locale_data)
+            
+            return {"id": version_id}
+            
+        except Exception as e:
+            print(f"⚠️  无法访问应用版本信息: {e}")
+            print(f"提示: 这可能是因为应用还没有任何版本，或者 API 权限不足")
+            print(f"建议: 在 App Store Connect 手动创建第一个版本后再使用此功能")
+            return None
     
     def update_version_localizations(self, version_id, locale_data):
         """
@@ -268,13 +281,8 @@ class AppStoreConnectAPI:
         for locale, data in locale_data.items():
             print(f"🌐 更新本地化信息: {locale}")
             
-            # 查找现有本地化
-            params = {
-                "filter[appStoreVersion]": version_id,
-                "filter[locale]": locale
-            }
-            
-            result = self.make_request("GET", "appStoreVersionLocalizations", params=params)
+            # 查找现有本地化（通过版本的关系）
+            result = self.make_request("GET", f"appStoreVersions/{version_id}/appStoreVersionLocalizations")
             
             localization_data = {
                 "data": {
@@ -339,13 +347,16 @@ class AppStoreConnectAPI:
             if not locale_metadata:
                 continue
             
-            # 查找现有本地化
-            params = {
-                "filter[app]": app_id,
-                "filter[locale]": locale
-            }
+            # 获取应用信息 ID
+            app_info_result = self.make_request("GET", f"apps/{app_id}/appInfos")
+            if not app_info_result or not app_info_result.get("data"):
+                print(f"⚠️  无法获取应用信息")
+                continue
             
-            result = self.make_request("GET", "appInfoLocalizations", params=params)
+            app_info_id = app_info_result["data"][0]["id"]
+            
+            # 查找现有本地化（通过 appInfo 的关系）
+            result = self.make_request("GET", f"appInfos/{app_info_id}/appInfoLocalizations")
             
             data = {
                 "data": {
@@ -366,27 +377,29 @@ class AppStoreConnectAPI:
             if "subtitle" in locale_metadata:
                 data["data"]["attributes"]["subtitle"] = locale_metadata["subtitle"]
             
+            # 查找匹配的本地化
+            loc_id = None
             if result and result.get("data"):
+                for loc in result["data"]:
+                    if loc["attributes"].get("locale") == locale:
+                        loc_id = loc["id"]
+                        break
+            
+            if loc_id:
                 # 更新现有本地化
-                loc_id = result["data"][0]["id"]
                 data["data"]["id"] = loc_id
                 self.make_request("PATCH", f"appInfoLocalizations/{loc_id}", data=data)
             else:
-                # 获取 appInfo ID
-                app_info_result = self.make_request("GET", f"apps/{app_id}/appInfos")
-                if app_info_result and app_info_result.get("data"):
-                    app_info_id = app_info_result["data"][0]["id"]
-                    
-                    # 创建新本地化
-                    data["data"]["relationships"] = {
-                        "appInfo": {
-                            "data": {
-                                "type": "appInfos",
-                                "id": app_info_id
-                            }
+                # 创建新本地化
+                data["data"]["relationships"] = {
+                    "appInfo": {
+                        "data": {
+                            "type": "appInfos",
+                            "id": app_info_id
                         }
                     }
-                    self.make_request("POST", "appInfoLocalizations", data=data)
+                }
+                self.make_request("POST", "appInfoLocalizations", data=data)
             
             print(f"✅ 应用元数据已更新: {locale}")
     
@@ -530,12 +543,8 @@ class AppStoreConnectAPI:
         
         print(f"📸 上传版本截图")
         
-        # 获取版本的本地化信息
-        params = {
-            "filter[appStoreVersion]": version_id
-        }
-        
-        result = self.make_request("GET", "appStoreVersionLocalizations", params=params)
+        # 获取版本的本地化信息（通过版本的关系）
+        result = self.make_request("GET", f"appStoreVersions/{version_id}/appStoreVersionLocalizations")
         
         if not result or not result.get("data"):
             print(f"⚠️  未找到版本本地化信息")
@@ -689,7 +698,11 @@ def main():
     
     # 更新版本信息
     if locale_data:
-        api.create_or_update_app_info(app_id, app_version, locale_data)
+        version_result = api.create_or_update_app_info(app_id, app_version, locale_data)
+        if not version_result:
+            print()
+            print("⚠️  版本信息更新失败，但不影响后续流程")
+            print("提示: 可以在 App Store Connect 手动添加版本信息")
     
     # 更新应用元数据
     metadata = {
@@ -738,17 +751,19 @@ def main():
             with open(screenshots_json, 'r') as f:
                 screenshot_mapping = json.load(f)
             
-            # 获取版本 ID
-            params = {
-                "filter[app]": app_id,
-                "filter[versionString]": app_version,
-                "filter[platform]": "IOS"
-            }
+            # 获取版本 ID（通过 app 的关系）
+            result = api.make_request("GET", f"apps/{app_id}/appStoreVersions")
             
-            result = api.make_request("GET", "appStoreVersions", params=params)
-            
+            version_id = None
             if result and result.get("data"):
-                version_id = result["data"][0]["id"]
+                # 查找匹配的版本
+                for version in result["data"]:
+                    if (version["attributes"].get("versionString") == app_version and
+                        version["attributes"].get("platform") == "IOS"):
+                        version_id = version["id"]
+                        break
+            
+            if version_id:
                 
                 # 将截图文件名映射转换为完整路径映射
                 screenshot_files = {}
