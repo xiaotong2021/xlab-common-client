@@ -712,8 +712,21 @@ class AppStoreConnectAPI:
                     print(f"提示: 可用的构建号见上方列表")
                     return False
             else:
-                # 默认使用最后一个版本（列表中的第一个，因为是按时间倒序排列）
-                selected_build = builds_result["data"][0]
+                # 默认使用版本号数值最大且状态为VALID的版本
+                # 过滤出状态为 VALID 的构建
+                valid_builds = [
+                    build for build in builds_result["data"]
+                    if build["attributes"].get("processingState") == "VALID"
+                ]
+                
+                if valid_builds:
+                    # 在 VALID 构建中，选择版本号数值最大的
+                    selected_build = max(valid_builds, key=lambda b: int(b["attributes"].get("version", "0")))
+                    print(f"🎯 已选择版本号最大的VALID构建")
+                else:
+                    # 如果没有 VALID 状态的构建，使用列表第一个
+                    selected_build = builds_result["data"][0]
+                    print(f"⚠️  未找到VALID状态的构建，使用第一个可用构建")
             
             build_id = selected_build["id"]
             build_version = selected_build["attributes"].get("version")
