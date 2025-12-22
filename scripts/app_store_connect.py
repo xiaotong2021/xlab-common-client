@@ -572,154 +572,6 @@ class AppStoreConnectAPI:
             print(f"提示: 类别必须在 App Store Connect 网站首次设置后才能通过 API 更新")
             return False
     
-    def update_app_age_rating(self, app_id):
-        """
-        更新应用年龄分级（设置为所有内容均为否/最低级别）
-        
-        Args:
-            app_id: 应用 ID
-        """
-        print(f"🔞 更新应用年龄分级")
-        
-        try:
-            # 获取 appInfo
-            app_info_result = self.make_request("GET", f"apps/{app_id}/appInfos")
-            if not app_info_result or not app_info_result.get("data"):
-                print(f"⚠️  无法获取应用信息")
-                return False
-            
-            app_info_id = app_info_result["data"][0]["id"]
-            
-            # 设置所有内容为最低级别（适合所有年龄）
-            update_data = {
-                "data": {
-                    "type": "appInfos",
-                    "id": app_info_id,
-                    "attributes": {
-                        # 所有年龄分级项目均设置为最低级别或"否"
-                        "kidsAgeBand": None,  # 不针对儿童
-                        
-                        # Apple 内容描述（全部设置为 NONE 或最低级别）
-                        "gamblingSimulated": "NONE",
-                        "matureOrSuggestiveThemes": "NONE",
-                        "violenceCartoonOrFantasy": "NONE",
-                        "violenceRealisticProlonged": "NONE",
-                        "violenceRealistic": "NONE",
-                        "profanityOrCrudeHumor": "NONE",
-                        "medicalOrTreatmentInformation": "NONE",
-                        "alcoholTobaccoOrDrugUseOrReferences": "NONE",
-                        "horrorOrFearThemes": "NONE",
-                        "sexualContentOrNudity": "NONE",
-                        "sexualContentGraphicAndNudity": "NONE",
-                        "unrestrictedWebAccess": False,
-                        "gamblingAndContests": False,
-                    }
-                }
-            }
-            
-            self.make_request("PATCH", f"appInfos/{app_info_id}", data=update_data)
-            print(f"✅ 应用年龄分级已更新为最低级别（适合所有年龄）")
-            return True
-        except Exception as e:
-            print(f"⚠️  应用年龄分级更新失败: {e}")
-            print(f"提示: 年龄分级可以在 App Store Connect 网站手动设置")
-            return False
-    
-    def update_app_pricing(self, app_id):
-        """
-        更新应用定价（设置为免费）
-        
-        Args:
-            app_id: 应用 ID
-        """
-        print(f"💰 更新应用定价")
-        
-        try:
-            # 获取应用的价格点（App Price Points）
-            # 价格等级 0 表示免费
-            price_tier = "0"
-            
-            # 获取所有可用的区域
-            territories_result = self.make_request("GET", "territories", params={"limit": 200})
-            
-            if not territories_result or not territories_result.get("data"):
-                print(f"⚠️  无法获取区域列表")
-                return False
-            
-            # 获取应用的当前定价信息
-            app_prices_result = self.make_request("GET", f"apps/{app_id}/prices")
-            
-            if app_prices_result and app_prices_result.get("data"):
-                # 如果已有价格，更新为免费
-                for price in app_prices_result["data"]:
-                    price_id = price["id"]
-                    update_data = {
-                        "data": {
-                            "type": "appPrices",
-                            "id": price_id,
-                            "attributes": {
-                                "startDate": None  # 立即生效
-                            },
-                            "relationships": {
-                                "priceTier": {
-                                    "data": {
-                                        "type": "appPriceTiers",
-                                        "id": price_tier
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    try:
-                        self.make_request("PATCH", f"appPrices/{price_id}", data=update_data)
-                    except Exception as e:
-                        print(f"  ⚠️  更新价格失败: {e}")
-                        continue
-            else:
-                # 如果没有价格，创建新的价格（免费）
-                for territory in territories_result["data"][:10]:  # 只为前10个主要区域创建
-                    territory_id = territory["id"]
-                    create_data = {
-                        "data": {
-                            "type": "appPrices",
-                            "attributes": {
-                                "startDate": None
-                            },
-                            "relationships": {
-                                "app": {
-                                    "data": {
-                                        "type": "apps",
-                                        "id": app_id
-                                    }
-                                },
-                                "territory": {
-                                    "data": {
-                                        "type": "territories",
-                                        "id": territory_id
-                                    }
-                                },
-                                "priceTier": {
-                                    "data": {
-                                        "type": "appPriceTiers",
-                                        "id": price_tier
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    try:
-                        self.make_request("POST", "appPrices", data=create_data)
-                    except Exception as e:
-                        print(f"  ⚠️  为区域 {territory_id} 创建价格失败: {e}")
-                        continue
-            
-            print(f"✅ 应用定价已设置为免费")
-            return True
-        except Exception as e:
-            print(f"⚠️  应用定价更新失败: {e}")
-            print(f"提示: 定价可以在 App Store Connect 网站手动设置")
-            return False
-    
     def update_app_review_details(self, version_id, contact_info):
         """
         更新审核联系信息
@@ -828,9 +680,9 @@ class AppStoreConnectAPI:
         print(f"🔗 关联构建版本到 App Store 版本")
         
         try:
-            # 获取可用的构建列表
+            # 获取可用的构建列表（最多100个）
             builds_result = self.make_request("GET", f"apps/{app_id}/builds", params={
-                "limit": 20
+                "limit": 100
             })
             
             if not builds_result or not builds_result.get("data"):
@@ -838,9 +690,9 @@ class AppStoreConnectAPI:
                 print(f"提示: 请确保已通过 TestFlight 上传构建，并等待构建处理完成")
                 return False
             
-            # 列出可用的构建
-            print(f"📋 可用的构建列表:")
-            for i, build in enumerate(builds_result["data"][:5], 1):  # 只显示前5个
+            # 列出所有可用的构建
+            print(f"📋 可用的构建列表 (共 {len(builds_result['data'])} 个):")
+            for i, build in enumerate(builds_result["data"], 1):
                 build_ver = build["attributes"].get("version")
                 build_num = build["attributes"].get("buildNumber")  
                 upload_date = build["attributes"].get("uploadedDate", "")[:10]
@@ -860,16 +712,8 @@ class AppStoreConnectAPI:
                     print(f"提示: 可用的构建号见上方列表")
                     return False
             else:
-                # 使用第一个处理完成的构建
-                for build in builds_result["data"]:
-                    processing_state = build["attributes"].get("processingState")
-                    if processing_state in ["VALID", "PROCESSING"]:
-                        selected_build = build
-                        break
-                
-                if not selected_build:
-                    # 如果没有找到有效的构建，使用第一个
-                    selected_build = builds_result["data"][0]
+                # 默认使用最后一个版本（列表中的第一个，因为是按时间倒序排列）
+                selected_build = builds_result["data"][0]
             
             build_id = selected_build["id"]
             build_version = selected_build["attributes"].get("version")
@@ -1461,30 +1305,6 @@ def main():
                 print(f"⚠️  应用类别更新异常: {e}")
                 update_summary["errors"].append(f"应用类别更新异常: {str(e)}")
         
-        # 更新年龄分级（默认设置为适合所有年龄）
-        print()
-        try:
-            success = api.update_app_age_rating(app_id)
-            if success:
-                update_summary["age_rating"] = "适合所有年龄（所有内容均为否/最低级别）"
-            else:
-                update_summary["errors"].append("应用年龄分级更新失败")
-        except Exception as e:
-            print(f"⚠️  应用年龄分级更新异常: {e}")
-            update_summary["errors"].append(f"应用年龄分级更新异常: {str(e)}")
-        
-        # 更新应用定价（默认设置为免费）
-        print()
-        try:
-            success = api.update_app_pricing(app_id)
-            if success:
-                update_summary["pricing"] = "免费"
-            else:
-                update_summary["errors"].append("应用定价更新失败")
-        except Exception as e:
-            print(f"⚠️  应用定价更新异常: {e}")
-            update_summary["errors"].append(f"应用定价更新异常: {str(e)}")
-        
         # 关联构建版本
         if version_id:
             print()
@@ -1658,18 +1478,6 @@ def main():
         print(f"  ✓ 主要类别 ID: {update_summary['category']['primary']}")
         if update_summary['category'].get('secondary'):
             print(f"  ✓ 次要类别 ID: {update_summary['category']['secondary']}")
-        print()
-    
-    # 年龄分级
-    if update_summary.get('age_rating'):
-        print("🔞 年龄分级:")
-        print(f"  ✓ {update_summary['age_rating']}")
-        print()
-    
-    # 应用定价
-    if update_summary.get('pricing'):
-        print("💰 应用定价:")
-        print(f"  ✓ {update_summary['pricing']}")
         print()
     
     # 构建版本关联
