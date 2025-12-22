@@ -293,9 +293,9 @@ def main():
     config = read_config(config_file)
     
     # 获取配置
-    splash_screen_url = config.get('splashScreen')
+    splash_screen_url = config.get('snapshotScreen')
     if not splash_screen_url:
-        print("❌ 错误: 配置文件中未找到 splashScreen")
+        print("❌ 错误: 配置文件中未找到 snapshotScreen")
         sys.exit(1)
     
     app_display_name = config.get('appDisplayName', app_name)
