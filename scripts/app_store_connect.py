@@ -759,7 +759,7 @@ class AppStoreConnectAPI:
             print(f"提示: 这可能是因为构建还在处理中，或者版本状态不允许关联构建")
             return False
     
-    def upload_screenshot(self, version_localization_id, screenshot_path, display_type):
+    def upload_screenshot(self, version_localization_id, screenshot_path, display_type, clear_existing=False):
         """
         上传截图
         
@@ -767,6 +767,7 @@ class AppStoreConnectAPI:
             version_localization_id: 版本本地化 ID
             screenshot_path: 截图文件路径
             display_type: 显示类型 (如 APP_IPHONE_67, APP_IPAD_PRO_3GEN_129)
+            clear_existing: 是否清空现有截图（默认 False，即追加模式）
             
         Returns:
             截图信息
@@ -829,8 +830,8 @@ class AppStoreConnectAPI:
             screenshot_set_id = result["data"]["id"]
             print(f"✅ 创建截图集: {screenshot_set_id}")
         else:
-            # 删除现有截图（替换模式）
-            if existing_screenshots:
+            # 根据 clear_existing 参数决定是否删除现有截图
+            if clear_existing and existing_screenshots:
                 print(f"🗑️  删除 {len(existing_screenshots)} 个旧截图...")
                 for old_screenshot in existing_screenshots:
                     old_screenshot_id = old_screenshot["id"]
@@ -908,16 +909,17 @@ class AppStoreConnectAPI:
     
     def upload_screenshots_for_version(self, version_id, screenshots_dir, device_screenshot_mapping):
         """
-        为指定版本上传截图
+        为指定版本上传截图（支持多张截图）
         
         Args:
             version_id: 版本 ID
             screenshots_dir: 截图目录
-            device_screenshot_mapping: 设备类型到截图文件的映射
-                格式: {'iPhone_6.7': 'screenshot_iPhone_6.7.png', ...}
+            device_screenshot_mapping: 设备类型到截图文件列表的映射
+                格式: {'iPhone_6.7': ['screenshot_iPhone_6.7_1.png', 'screenshot_iPhone_6.7_2.png'], ...}
+                或旧格式: {'iPhone_6.7': 'screenshot_iPhone_6.7.png', ...}
                 
         Returns:
-            成功上传的截图字典: {'device_type': 'filename', ...}
+            成功上传的截图字典: {'device_type': ['filename1', 'filename2', ...], ...}
         """
         # 设备类型映射
         DEVICE_TYPE_MAPPING = {
@@ -948,12 +950,10 @@ class AppStoreConnectAPI:
         print(f"📱 上传截图 - 语言: {locale}")
         
         # 上传每个设备类型的截图
-        for device_type, screenshot_filename in device_screenshot_mapping.items():
-            screenshot_path = os.path.join(screenshots_dir, screenshot_filename)
-            
-            if not os.path.exists(screenshot_path):
-                print(f"⚠️  截图不存在: {screenshot_path}")
-                continue
+        for device_type, screenshot_files in device_screenshot_mapping.items():
+            # 兼容旧格式（单个文件名字符串）和新格式（文件名列表）
+            if isinstance(screenshot_files, str):
+                screenshot_files = [screenshot_files]
             
             # 将设备类型映射到 App Store Connect 的显示类型
             display_type = DEVICE_TYPE_MAPPING.get(device_type)
@@ -962,14 +962,30 @@ class AppStoreConnectAPI:
                 print(f"⚠️  未知的设备类型: {device_type}")
                 continue
             
-            try:
-                self.upload_screenshot(localization_id, screenshot_path, display_type)
-                # 只有成功上传才记录
-                uploaded_screenshots[device_type] = screenshot_filename
-                print(f"✅ {device_type} 截图上传成功")
-            except Exception as e:
-                print(f"❌ 上传截图失败 ({device_type}): {e}")
-                continue
+            print(f"\n📱 {device_type} - 准备上传 {len(screenshot_files)} 张截图")
+            uploaded_screenshots[device_type] = []
+            
+            # 上传该设备类型的所有截图
+            for index, screenshot_filename in enumerate(screenshot_files, 1):
+                screenshot_path = os.path.join(screenshots_dir, screenshot_filename)
+                
+                if not os.path.exists(screenshot_path):
+                    print(f"⚠️  截图不存在: {screenshot_path}")
+                    continue
+                
+                try:
+                    # 第一张截图清空旧截图，后续截图追加
+                    clear_existing = (index == 1)
+                    self.upload_screenshot(localization_id, screenshot_path, display_type, clear_existing=clear_existing)
+                    # 只有成功上传才记录
+                    uploaded_screenshots[device_type].append(screenshot_filename)
+                    print(f"✅ {device_type} 截图 {index}/{len(screenshot_files)} 上传成功")
+                except Exception as e:
+                    print(f"❌ 上传截图失败 ({device_type} #{index}): {e}")
+                    continue
+            
+            if uploaded_screenshots[device_type]:
+                print(f"✅ {device_type} 共上传 {len(uploaded_screenshots[device_type])} 张截图")
         
         return uploaded_screenshots
 
@@ -1360,10 +1376,17 @@ def main():
                 with open(screenshots_json, 'r') as f:
                     screenshot_mapping = json.load(f)
                 
-                # 将截图文件名映射转换为完整路径映射
+                # 将截图文件名映射转换为标准格式（列表）
                 screenshot_files = {}
-                for device_type, filename in screenshot_mapping.items():
-                    screenshot_files[device_type] = os.path.basename(filename)
+                for device_type, files in screenshot_mapping.items():
+                    # 兼容旧格式（字符串）和新格式（列表）
+                    if isinstance(files, str):
+                        screenshot_files[device_type] = [os.path.basename(files)]
+                    elif isinstance(files, list):
+                        screenshot_files[device_type] = [os.path.basename(f) for f in files]
+                    else:
+                        print(f"⚠️  未知的截图格式: {device_type}")
+                        continue
                 
                 # 上传截图
                 try:
@@ -1371,17 +1394,21 @@ def main():
                     
                     # 记录成功上传的截图
                     if uploaded_screenshots:
-                        for device_type, filename in uploaded_screenshots.items():
-                            update_summary["screenshots"][device_type] = filename
-                        print(f"✅ 截图上传完成 ({len(uploaded_screenshots)}/{len(screenshot_files)})")
+                        for device_type, filenames in uploaded_screenshots.items():
+                            update_summary["screenshots"][device_type] = filenames
+                        
+                        # 计算总截图数
+                        total_uploaded = sum(len(files) for files in uploaded_screenshots.values())
+                        total_expected = sum(len(files) for files in screenshot_files.values())
+                        print(f"✅ 截图上传完成 ({total_uploaded}/{total_expected} 张)")
                     else:
                         print(f"⚠️  所有截图上传失败")
                         update_summary["errors"].append("所有截图上传失败")
                     
-                    # 记录失败的截图
-                    failed_screenshots = set(screenshot_files.keys()) - set(uploaded_screenshots.keys())
-                    if failed_screenshots:
-                        for device_type in failed_screenshots:
+                    # 记录失败的设备类型
+                    failed_devices = set(screenshot_files.keys()) - set(uploaded_screenshots.keys())
+                    if failed_devices:
+                        for device_type in failed_devices:
                             update_summary["errors"].append(f"截图上传失败: {device_type}")
                         
                 except Exception as e:
@@ -1462,8 +1489,14 @@ def main():
     # 截图上传
     if update_summary['screenshots']:
         print("📸 截图上传:")
-        for device_type, filename in update_summary['screenshots'].items():
-            print(f"  ✓ {device_type}: {filename}")
+        for device_type, filenames in update_summary['screenshots'].items():
+            if isinstance(filenames, list):
+                print(f"  ✓ {device_type}: {len(filenames)} 张")
+                for filename in filenames:
+                    print(f"    • {filename}")
+            else:
+                # 兼容旧格式（单个文件名）
+                print(f"  ✓ {device_type}: {filenames}")
         print()
     else:
         if enable_screenshots:

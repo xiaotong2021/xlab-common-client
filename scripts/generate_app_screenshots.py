@@ -178,7 +178,7 @@ class ScreenshotGenerator:
         return img_copy
     
     def generate_screenshot(self, source_image_url, device_type, app_name, subtitle=None, 
-                          add_text=False, background_color=(255, 255, 255, 255)):
+                          add_text=False, background_color=(255, 255, 255, 255), index=1):
         """
         生成单个设备类型的截图
         
@@ -189,6 +189,7 @@ class ScreenshotGenerator:
             subtitle: 副标题
             add_text: 是否添加文字
             background_color: 背景颜色
+            index: 截图序号（用于生成多张截图时区分文件名）
             
         Returns:
             生成的截图文件路径
@@ -198,7 +199,7 @@ class ScreenshotGenerator:
         
         canvas_size = self.SCREENSHOT_SIZES[device_type]
         
-        print(f"🎨 生成截图: {device_type} ({canvas_size[0]}x{canvas_size[1]})")
+        print(f"🎨 生成截图 #{index}: {device_type} ({canvas_size[0]}x{canvas_size[1]})")
         
         # 下载源图片
         source_image = self.download_image(source_image_url)
@@ -214,7 +215,7 @@ class ScreenshotGenerator:
         screenshot = screenshot.convert('RGB')
         
         # 保存截图
-        output_filename = f"screenshot_{device_type}.png"
+        output_filename = f"screenshot_{device_type}_{index}.png"
         output_path = self.output_dir / output_filename
         screenshot.save(output_path, 'PNG', quality=95)
         
@@ -222,39 +223,46 @@ class ScreenshotGenerator:
         
         return str(output_path)
     
-    def generate_all_screenshots(self, source_image_url, app_name, subtitle=None, 
+    def generate_all_screenshots(self, source_image_urls, app_name, subtitle=None, 
                                  device_types=None, add_text=False):
         """
-        生成所有设备类型的截图
+        生成所有设备类型的截图（支持多张源图片）
         
         Args:
-            source_image_url: 源图片 URL 或路径
+            source_image_urls: 源图片 URL 或路径列表
             app_name: 应用名称
             subtitle: 副标题
             device_types: 要生成的设备类型列表，None 表示生成所有类型
             add_text: 是否添加文字
             
         Returns:
-            生成的截图文件路径列表
+            生成的截图文件路径字典，格式: {'device_type': ['path1', 'path2', ...], ...}
         """
         if device_types is None:
             # 默认只生成必需的设备类型
             device_types = ['iPhone_6.7', 'iPad_12.9_3rd']
         
-        screenshots = {}
+        screenshots = {device_type: [] for device_type in device_types}
         
-        for device_type in device_types:
-            try:
-                screenshot_path = self.generate_screenshot(
-                    source_image_url=source_image_url,
-                    device_type=device_type,
-                    app_name=app_name,
-                    subtitle=subtitle,
-                    add_text=add_text
-                )
-                screenshots[device_type] = screenshot_path
-            except Exception as e:
-                print(f"❌ 生成 {device_type} 截图失败: {e}")
+        # 遍历每个源图片
+        for index, source_image_url in enumerate(source_image_urls, start=1):
+            print(f"\n📸 处理源图片 {index}/{len(source_image_urls)}: {source_image_url}")
+            print("-" * 60)
+            
+            # 为每个设备类型生成截图
+            for device_type in device_types:
+                try:
+                    screenshot_path = self.generate_screenshot(
+                        source_image_url=source_image_url,
+                        device_type=device_type,
+                        app_name=app_name,
+                        subtitle=subtitle,
+                        add_text=add_text,
+                        index=index
+                    )
+                    screenshots[device_type].append(screenshot_path)
+                except Exception as e:
+                    print(f"❌ 生成 {device_type} 截图 #{index} 失败: {e}")
         
         return screenshots
 
@@ -292,9 +300,15 @@ def main():
     print(f"📖 读取配置文件: {config_file}")
     config = read_config(config_file)
     
-    # 获取配置
-    splash_screen_url = config.get('snapshotScreen')
-    if not splash_screen_url:
+    # 获取配置 - 支持多个截图源
+    snapshot_screens = []
+    for i in range(1, 11):  # 支持最多10张截图
+        key = 'snapshotScreen' if i == 1 else f'snapshotScreen{i}'
+        url = config.get(key)
+        if url:
+            snapshot_screens.append(url)
+    
+    if not snapshot_screens:
         print("❌ 错误: 配置文件中未找到 snapshotScreen")
         sys.exit(1)
     
@@ -314,7 +328,9 @@ def main():
     print("📱 App Store 截图生成")
     print("=" * 60)
     print(f"应用名称: {app_display_name}")
-    print(f"源图片: {splash_screen_url}")
+    print(f"源图片数量: {len(snapshot_screens)}")
+    for i, url in enumerate(snapshot_screens, 1):
+        print(f"  {i}. {url}")
     print(f"设备类型: {', '.join(device_types)}")
     print(f"输出目录: {output_dir}")
     print("=" * 60)
@@ -325,7 +341,7 @@ def main():
     
     try:
         screenshots = generator.generate_all_screenshots(
-            source_image_url=splash_screen_url,
+            source_image_urls=snapshot_screens,
             app_name=app_display_name,
             subtitle=app_subtitle if app_subtitle else None,
             device_types=device_types,
@@ -336,9 +352,12 @@ def main():
         print("=" * 60)
         print("✅ 截图生成完成!")
         print("=" * 60)
-        print(f"共生成 {len(screenshots)} 张截图:")
-        for device_type, path in screenshots.items():
-            print(f"  - {device_type}: {path}")
+        total_screenshots = sum(len(paths) for paths in screenshots.values())
+        print(f"共生成 {total_screenshots} 张截图:")
+        for device_type, paths in screenshots.items():
+            print(f"  - {device_type}: {len(paths)} 张")
+            for path in paths:
+                print(f"    • {os.path.basename(path)}")
         print("=" * 60)
         
         # 保存截图路径列表（供后续上传使用）
@@ -358,4 +377,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
