@@ -500,7 +500,17 @@ class AppStoreConnectAPI:
                 if "subtitle" in locale_metadata:
                     update_data["data"]["attributes"]["subtitle"] = locale_metadata["subtitle"]
                 
-                self.make_request("PATCH", f"appInfoLocalizations/{loc_id}", data=update_data)
+                try:
+                    self.make_request("PATCH", f"appInfoLocalizations/{loc_id}", data=update_data)
+                except Exception as e:
+                    error_msg = str(e)
+                    # 检查是否是状态错误（某些字段在当前状态下无法修改）
+                    if "INVALID_STATE" in error_msg or "can not be modified" in error_msg:
+                        print(f"⚠️  某些字段在当前状态下无法修改: {locale}")
+                        print(f"提示: 'name' 和 'privacyPolicyUrl' 等字段在应用发布后通常无法通过 API 修改")
+                        # 继续处理，不抛出异常
+                    else:
+                        raise
             else:
                 # 创建新本地化
                 # 注意：创建时 name 属性是必需的
@@ -568,9 +578,15 @@ class AppStoreConnectAPI:
             print(f"✅ 应用类别已更新")
             return True
         except Exception as e:
-            print(f"⚠️  应用类别更新失败: {e}")
-            print(f"提示: 类别必须在 App Store Connect 网站首次设置后才能通过 API 更新")
-            return False
+            error_msg = str(e)
+            # 检查是否是状态错误
+            if "INVALID_STATE" in error_msg or "can not be modified" in error_msg or "RELATIONSHIP.INVALID_STATE" in error_msg:
+                print(f"⚠️  应用类别在当前状态下无法修改")
+                print(f"提示: 应用类别在应用发布后通常无法通过 API 修改，请在 App Store Connect 网站手动设置")
+                return False
+            else:
+                print(f"⚠️  应用类别更新失败: {e}")
+                return False
     
     def update_app_review_details(self, version_id, contact_info):
         """
@@ -907,7 +923,7 @@ class AppStoreConnectAPI:
                 md5.update(chunk)
         return md5.hexdigest()
     
-    def upload_screenshots_for_version(self, version_id, screenshots_dir, device_screenshot_mapping):
+    def upload_screenshots_for_version(self, version_id, screenshots_dir, device_screenshot_mapping, primary_locale=None):
         """
         为指定版本上传截图（支持多张截图）
         
@@ -917,6 +933,7 @@ class AppStoreConnectAPI:
             device_screenshot_mapping: 设备类型到截图文件列表的映射
                 格式: {'iPhone_6.7': ['screenshot_iPhone_6.7_1.png', 'screenshot_iPhone_6.7_2.png'], ...}
                 或旧格式: {'iPhone_6.7': 'screenshot_iPhone_6.7.png', ...}
+            primary_locale: 主要语言（可选，如果指定则只为该语言上传，否则为所有语言上传）
                 
         Returns:
             成功上传的截图字典: {'device_type': ['filename1', 'filename2', ...], ...}
@@ -942,50 +959,73 @@ class AppStoreConnectAPI:
             print(f"⚠️  未找到版本本地化信息")
             return uploaded_screenshots
         
-        # 只为第一个本地化上传截图（通常截图对所有语言是相同的）
-        localization = result["data"][0]
-        localization_id = localization["id"]
-        locale = localization["attributes"]["locale"]
+        # 选择要上传截图的本地化
+        localizations_to_upload = []
         
-        print(f"📱 上传截图 - 语言: {locale}")
+        if primary_locale:
+            # 只为主要语言上传
+            for loc in result["data"]:
+                if loc["attributes"]["locale"] == primary_locale:
+                    localizations_to_upload.append(loc)
+                    break
+            
+            if not localizations_to_upload:
+                print(f"⚠️  未找到主要语言 {primary_locale}，使用第一个本地化")
+                localizations_to_upload.append(result["data"][0])
+        else:
+            # 为所有语言上传（通常截图对所有语言是相同的）
+            localizations_to_upload = result["data"]
         
-        # 上传每个设备类型的截图
-        for device_type, screenshot_files in device_screenshot_mapping.items():
-            # 兼容旧格式（单个文件名字符串）和新格式（文件名列表）
-            if isinstance(screenshot_files, str):
-                screenshot_files = [screenshot_files]
+        print(f"📱 将为 {len(localizations_to_upload)} 个语言上传截图")
+        
+        # 为每个本地化上传截图
+        for localization in localizations_to_upload:
+            localization_id = localization["id"]
+            locale = localization["attributes"]["locale"]
             
-            # 将设备类型映射到 App Store Connect 的显示类型
-            display_type = DEVICE_TYPE_MAPPING.get(device_type)
-            
-            if not display_type:
-                print(f"⚠️  未知的设备类型: {device_type}")
-                continue
-            
-            print(f"\n📱 {device_type} - 准备上传 {len(screenshot_files)} 张截图")
-            uploaded_screenshots[device_type] = []
-            
-            # 上传该设备类型的所有截图
-            for index, screenshot_filename in enumerate(screenshot_files, 1):
-                screenshot_path = os.path.join(screenshots_dir, screenshot_filename)
+            print(f"\n📱 上传截图 - 语言: {locale}")
+        
+            # 上传每个设备类型的截图
+            for device_type, screenshot_files in device_screenshot_mapping.items():
+                # 兼容旧格式（单个文件名字符串）和新格式（文件名列表）
+                if isinstance(screenshot_files, str):
+                    screenshot_files = [screenshot_files]
                 
-                if not os.path.exists(screenshot_path):
-                    print(f"⚠️  截图不存在: {screenshot_path}")
+                # 将设备类型映射到 App Store Connect 的显示类型
+                display_type = DEVICE_TYPE_MAPPING.get(device_type)
+                
+                if not display_type:
+                    print(f"⚠️  未知的设备类型: {device_type}")
                     continue
                 
-                try:
-                    # 第一张截图清空旧截图，后续截图追加
-                    clear_existing = (index == 1)
-                    self.upload_screenshot(localization_id, screenshot_path, display_type, clear_existing=clear_existing)
-                    # 只有成功上传才记录
-                    uploaded_screenshots[device_type].append(screenshot_filename)
-                    print(f"✅ {device_type} 截图 {index}/{len(screenshot_files)} 上传成功")
-                except Exception as e:
-                    print(f"❌ 上传截图失败 ({device_type} #{index}): {e}")
-                    continue
-            
-            if uploaded_screenshots[device_type]:
-                print(f"✅ {device_type} 共上传 {len(uploaded_screenshots[device_type])} 张截图")
+                print(f"  📱 {device_type} - 准备上传 {len(screenshot_files)} 张截图")
+                
+                # 初始化设备类型的上传记录
+                if device_type not in uploaded_screenshots:
+                    uploaded_screenshots[device_type] = []
+                
+                # 上传该设备类型的所有截图
+                for index, screenshot_filename in enumerate(screenshot_files, 1):
+                    screenshot_path = os.path.join(screenshots_dir, screenshot_filename)
+                    
+                    if not os.path.exists(screenshot_path):
+                        print(f"  ⚠️  截图不存在: {screenshot_path}")
+                        continue
+                    
+                    try:
+                        # 第一张截图清空旧截图，后续截图追加
+                        clear_existing = (index == 1)
+                        self.upload_screenshot(localization_id, screenshot_path, display_type, clear_existing=clear_existing)
+                        # 只有成功上传才记录（避免重复记录）
+                        if screenshot_filename not in uploaded_screenshots[device_type]:
+                            uploaded_screenshots[device_type].append(screenshot_filename)
+                        print(f"  ✅ {device_type} 截图 {index}/{len(screenshot_files)} 上传成功")
+                    except Exception as e:
+                        print(f"  ❌ 上传截图失败 ({device_type} #{index}): {e}")
+                        continue
+                
+                if uploaded_screenshots[device_type]:
+                    print(f"  ✅ {device_type} 共上传 {len(uploaded_screenshots[device_type])} 张截图")
         
         return uploaded_screenshots
 
@@ -1390,7 +1430,13 @@ def main():
                 
                 # 上传截图
                 try:
-                    uploaded_screenshots = api.upload_screenshots_for_version(version_id, screenshots_dir, screenshot_files)
+                    # 使用主要语言上传截图（通常截图对所有语言是相同的）
+                    uploaded_screenshots = api.upload_screenshots_for_version(
+                        version_id, 
+                        screenshots_dir, 
+                        screenshot_files,
+                        primary_locale=primary_locale
+                    )
                     
                     # 记录成功上传的截图
                     if uploaded_screenshots:
