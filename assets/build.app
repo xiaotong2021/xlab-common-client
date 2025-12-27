@@ -1,1 +1,1 @@
-appName=pgym
+appName=idomGuess
