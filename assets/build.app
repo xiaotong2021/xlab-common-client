@@ -1,1 +1,1 @@
-appName=idomGuess
+appName=psychologicalgym
