@@ -1,1 +1,1 @@
-appName=Test111
+appName=MentalGym
