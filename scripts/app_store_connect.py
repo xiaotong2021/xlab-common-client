@@ -1030,6 +1030,34 @@ class AppStoreConnectAPI:
         return uploaded_screenshots
 
 
+def unescape_string(text):
+    """
+    将字符串中的转义字符转换为实际字符
+    
+    Args:
+        text: 原始文本
+        
+    Returns:
+        转换后的文本
+    """
+    if not text:
+        return text
+    
+    # 替换常见的转义字符
+    replacements = {
+        '\\n': '\n',   # 换行符
+        '\\r': '\r',   # 回车符
+        '\\t': '\t',   # 制表符
+        '\\\\': '\\',  # 反斜杠（需要最后处理）
+    }
+    
+    result = text
+    for escape_seq, actual_char in replacements.items():
+        result = result.replace(escape_seq, actual_char)
+    
+    return result
+
+
 def read_config(config_file):
     """读取配置文件"""
     config = {}
@@ -1156,17 +1184,17 @@ def main():
         
         locale_info = {}
         
-        # 应用描述
+        # 应用描述（支持转义字符）
         if config.get(f'appDescription_{locale_prefix}'):
-            locale_info['description'] = config[f'appDescription_{locale_prefix}']
+            locale_info['description'] = unescape_string(config[f'appDescription_{locale_prefix}'])
         elif config.get('appDescription'):
-            locale_info['description'] = config['appDescription']
+            locale_info['description'] = unescape_string(config['appDescription'])
         
-        # 关键词
+        # 关键词（支持转义字符）
         if config.get(f'appKeywords_{locale_prefix}'):
-            locale_info['keywords'] = config[f'appKeywords_{locale_prefix}']
+            locale_info['keywords'] = unescape_string(config[f'appKeywords_{locale_prefix}'])
         elif config.get('appKeywords'):
-            locale_info['keywords'] = config['appKeywords']
+            locale_info['keywords'] = unescape_string(config['appKeywords'])
         
         # 技术支持网址
         if config.get('appSupportUrl'):
@@ -1176,17 +1204,17 @@ def main():
         if config.get('appMarketingUrl'):
             locale_info['marketingUrl'] = config['appMarketingUrl']
         
-        # 推广文本
+        # 推广文本（支持转义字符）
         if config.get(f'appPromotionalText_{locale_prefix}'):
-            locale_info['promotionalText'] = config[f'appPromotionalText_{locale_prefix}']
+            locale_info['promotionalText'] = unescape_string(config[f'appPromotionalText_{locale_prefix}'])
         elif config.get('appPromotionalText'):
-            locale_info['promotionalText'] = config['appPromotionalText']
+            locale_info['promotionalText'] = unescape_string(config['appPromotionalText'])
         
-        # 更新说明
+        # 更新说明（支持转义字符）
         if config.get(f'appReleaseNotes_{locale_prefix}'):
-            locale_info['releaseNotes'] = config[f'appReleaseNotes_{locale_prefix}']
+            locale_info['releaseNotes'] = unescape_string(config[f'appReleaseNotes_{locale_prefix}'])
         elif config.get('appReleaseNotes'):
-            locale_info['releaseNotes'] = config['appReleaseNotes']
+            locale_info['releaseNotes'] = unescape_string(config['appReleaseNotes'])
         
         if locale_info:
             locale_data[locale] = locale_info
@@ -1234,8 +1262,8 @@ def main():
         # 更新版本信息
         if version_id and locale_data:
             try:
-                # 读取版权信息
-                copyright_text = config.get('appCopyright')
+                # 读取版权信息（支持转义字符）
+                copyright_text = unescape_string(config.get('appCopyright'))
                 
                 updated_locales = api.update_app_version_info(version_id, current_version, locale_data, copyright=copyright_text)
                 
@@ -1298,9 +1326,9 @@ def main():
                 locale_metadata['privacyPolicyUrl'] = config['appPrivacyPolicyUrl']
             
             if config.get(f'appSubtitle_{locale_prefix}'):
-                locale_metadata['subtitle'] = config[f'appSubtitle_{locale_prefix}']
+                locale_metadata['subtitle'] = unescape_string(config[f'appSubtitle_{locale_prefix}'])
             elif config.get('appSubtitle'):
-                locale_metadata['subtitle'] = config['appSubtitle']
+                locale_metadata['subtitle'] = unescape_string(config['appSubtitle'])
             
             # 只有当有 name 属性时才添加到 locale_data（因为创建时 name 是必需的）
             if locale_metadata and 'name' in locale_metadata:
@@ -1336,7 +1364,7 @@ def main():
             if config.get('reviewContactEmail') or config.get('appReviewEmail'):
                 contact_info['emailAddress'] = config.get('reviewContactEmail') or config.get('appReviewEmail')
             if config.get('reviewNotes') or config.get('appReviewNotes'):
-                contact_info['notes'] = config.get('reviewNotes') or config.get('appReviewNotes')
+                contact_info['notes'] = unescape_string(config.get('reviewNotes') or config.get('appReviewNotes'))
             if config.get('appDemoAccountName'):
                 contact_info['demoAccountName'] = config['appDemoAccountName']
             if config.get('appDemoAccountPassword'):
