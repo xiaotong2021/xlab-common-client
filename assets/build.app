@@ -1,1 +1,1 @@
-appName=KetForKids
+appName=KetEnglishTest
