@@ -1,1 +1,1 @@
-appName=KetEnglishTest
+appName=KetEngStudy
