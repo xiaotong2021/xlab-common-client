@@ -1,1 +1,1 @@
-appName=KetEngStudy
+appName=MentalGym
