@@ -1,1 +1,1 @@
-appName=MentalGym
+appName=activegroup

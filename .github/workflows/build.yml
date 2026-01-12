@@ -39,7 +39,7 @@ jobs:
           # 提取配置值
           BUILD_ANDROID=$(grep '^buildAndroid=' $CONFIG_FILE | cut -d'=' -f2 | tr '[:upper:]' '[:lower:]')
           BUILD_IOS=$(grep '^buildIOS=' $CONFIG_FILE | cut -d'=' -f2 | tr '[:upper:]' '[:lower:]')
-          NEED_DEBUG=$(grep '^needDebugApp=' $CONFIG_FILE | cut -d'=' -f2 | tr '[:upper:]' '[:lower:]')
+          NEED_DEBUG=$(grep '^needDebug=' $CONFIG_FILE | cut -d'=' -f2 | tr '[:upper:]' '[:lower:]')
           APP_VERSION=$(grep '^appVersion=' $CONFIG_FILE | cut -d'=' -f2)
           
           # 设置默认值
@@ -327,11 +327,6 @@ jobs:
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/${{ secrets.ANDROID_KEYSTORE_FILE || 'devdroid.jks' }}
         working-directory: ./
-
-      - name: Build Android Debug APK
-        if: needs.prepare.outputs.build_android == 'true' && needs.prepare.outputs.need_debug == 'true'
-        run: ./gradlew assembleDebug
-        working-directory: ./android
 
       - name: Build Android Release APK
         if: needs.prepare.outputs.build_android == 'true'
