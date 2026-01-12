@@ -1,1 +1,1 @@
-appName=activegroup
+appName=hitOrNot
