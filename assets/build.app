@@ -1,1 +1,1 @@
-appName=hitOrNot
+appName=MARK
