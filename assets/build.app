@@ -1,1 +1,1 @@
-appName=MARK
+appName=MathsEater
