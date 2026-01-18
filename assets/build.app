@@ -1,1 +1,1 @@
-appName=MathsEater
+appName=homework
