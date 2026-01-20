@@ -65,5 +65,14 @@
 	</dict>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<!-- 动态权限配置（由build_config.py根据app.cfg自动生成） -->
+	<!-- __PERMISSION_CAMERA__ -->
+	<!-- __PERMISSION_PHOTO_LIBRARY__ -->
+	<!-- __PERMISSION_LOCATION_WHEN_IN_USE__ -->
+	<!-- __PERMISSION_LOCATION_ALWAYS__ -->
+	<!-- __PERMISSION_MICROPHONE__ -->
+	<!-- __PERMISSION_BLUETOOTH__ -->
+	<!-- __PERMISSION_CONTACTS__ -->
+	<!-- __PERMISSION_CALENDAR__ -->
 </dict>
 </plist>

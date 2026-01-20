@@ -504,6 +504,64 @@ class ConfigBuilder:
 }''')
             print(f"Created: {contents_json}")
     
+    def generate_android_permissions(self):
+        """根据配置生成Android权限声明"""
+        permissions = []
+        
+        # 相机权限
+        if self.parse_boolean(self.config.get('enableCameraPermission', 'false')):
+            permissions.append('<uses-permission android:name="android.permission.CAMERA" />')
+            permissions.append('<uses-feature android:name="android.hardware.camera" android:required="false" />')
+        
+        # 存储权限
+        if self.parse_boolean(self.config.get('enableStoragePermission', 'false')):
+            permissions.append('<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />')
+            permissions.append('<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />')
+            permissions.append('<uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />')
+            permissions.append('<uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />')
+        
+        # 位置权限
+        if self.parse_boolean(self.config.get('enableLocationPermission', 'false')):
+            permissions.append('<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />')
+            permissions.append('<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />')
+        
+        # 麦克风权限
+        if self.parse_boolean(self.config.get('enableMicrophonePermission', 'false')):
+            permissions.append('<uses-permission android:name="android.permission.RECORD_AUDIO" />')
+        
+        # 蓝牙权限
+        if self.parse_boolean(self.config.get('enableBluetoothPermission', 'false')):
+            permissions.append('<uses-permission android:name="android.permission.BLUETOOTH" />')
+            permissions.append('<uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />')
+            permissions.append('<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />')
+            permissions.append('<uses-permission android:name="android.permission.BLUETOOTH_SCAN" />')
+        
+        # 通讯录权限
+        if self.parse_boolean(self.config.get('enableContactsPermission', 'false')):
+            permissions.append('<uses-permission android:name="android.permission.READ_CONTACTS" />')
+            permissions.append('<uses-permission android:name="android.permission.WRITE_CONTACTS" />')
+        
+        # 日历权限
+        if self.parse_boolean(self.config.get('enableCalendarPermission', 'false')):
+            permissions.append('<uses-permission android:name="android.permission.READ_CALENDAR" />')
+            permissions.append('<uses-permission android:name="android.permission.WRITE_CALENDAR" />')
+        
+        # 相册权限（Android 13+）
+        if self.parse_boolean(self.config.get('enablePhotoLibraryPermission', 'false')):
+            permissions.append('<uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />')
+            permissions.append('<uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />')
+            permissions.append('<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />')
+        
+        # 额外权限
+        extra_perms = self.config.get('androidExtraPermissions', '').strip()
+        if extra_perms:
+            for perm in extra_perms.split(','):
+                perm = perm.strip()
+                if perm:
+                    permissions.append(f'<uses-permission android:name="android.permission.{perm}" />')
+        
+        return '\n    '.join(permissions) if permissions else ''
+    
     def configure_android(self, app_name):
         """配置Android项目"""
         print("\n=== Configuring Android ===")
@@ -511,8 +569,36 @@ class ConfigBuilder:
         package_name = self.config.get('appId', 'com.mywebviewapp')
         package_path = package_name.replace('.', '/')
         
+        # 生成权限声明
+        camera_perm = '<uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />' if self.parse_boolean(self.config.get('enableCameraPermission', 'false')) else ''
+        storage_perm = '<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />\n    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />\n    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />' if self.parse_boolean(self.config.get('enableStoragePermission', 'false')) else ''
+        location_perm = '<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />' if self.parse_boolean(self.config.get('enableLocationPermission', 'false')) else ''
+        microphone_perm = '<uses-permission android:name="android.permission.RECORD_AUDIO" />' if self.parse_boolean(self.config.get('enableMicrophonePermission', 'false')) else ''
+        bluetooth_perm = '<uses-permission android:name="android.permission.BLUETOOTH" />\n    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />\n    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />\n    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />' if self.parse_boolean(self.config.get('enableBluetoothPermission', 'false')) else ''
+        contacts_perm = '<uses-permission android:name="android.permission.READ_CONTACTS" />\n    <uses-permission android:name="android.permission.WRITE_CONTACTS" />' if self.parse_boolean(self.config.get('enableContactsPermission', 'false')) else ''
+        calendar_perm = '<uses-permission android:name="android.permission.READ_CALENDAR" />\n    <uses-permission android:name="android.permission.WRITE_CALENDAR" />' if self.parse_boolean(self.config.get('enableCalendarPermission', 'false')) else ''
+        
+        # 额外权限
+        extra_perms_list = []
+        extra_perms = self.config.get('androidExtraPermissions', '').strip()
+        if extra_perms:
+            for perm in extra_perms.split(','):
+                perm = perm.strip()
+                if perm:
+                    extra_perms_list.append(f'<uses-permission android:name="android.permission.{perm}" />')
+        extra_permissions = '\n    '.join(extra_perms_list) if extra_perms_list else ''
+        
         # 准备替换映射
         replacements = {
+            # 权限占位符
+            '<!-- __PERMISSION_CAMERA__ -->': camera_perm,
+            '<!-- __PERMISSION_STORAGE__ -->': storage_perm,
+            '<!-- __PERMISSION_LOCATION__ -->': location_perm,
+            '<!-- __PERMISSION_MICROPHONE__ -->': microphone_perm,
+            '<!-- __PERMISSION_BLUETOOTH__ -->': bluetooth_perm,
+            '<!-- __PERMISSION_CONTACTS__ -->': contacts_perm,
+            '<!-- __PERMISSION_CALENDAR__ -->': calendar_perm,
+            '<!-- __EXTRA_PERMISSIONS__ -->': extra_permissions,
             '__APP_ID__': package_name,
             '__PACKAGE_NAME__': package_name,
             '__APP_NAME__': self.config.get('appName', 'MyWebView'),
@@ -616,7 +702,47 @@ class ConfigBuilder:
         if team_id == 'PLACEHOLDER_TEAM_ID' or not team_id:
             team_id = ''
         
+        # 生成iOS权限声明
+        camera_perm = f'''<key>NSCameraUsageDescription</key>
+	<string>{self.config.get('iosCameraUsageDescription', '需要使用相机进行拍照和扫描')}</string>''' if self.parse_boolean(self.config.get('enableCameraPermission', 'false')) else ''
+        
+        photo_library_perm = f'''<key>NSPhotoLibraryUsageDescription</key>
+	<string>{self.config.get('iosPhotoLibraryUsageDescription', '需要访问相册以选择照片')}</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>{self.config.get('iosPhotoLibraryUsageDescription', '需要访问相册以保存照片')}</string>''' if self.parse_boolean(self.config.get('enablePhotoLibraryPermission', 'false')) else ''
+        
+        location_when_in_use_perm = f'''<key>NSLocationWhenInUseUsageDescription</key>
+	<string>{self.config.get('iosLocationWhenInUseUsageDescription', '需要使用您的位置信息')}</string>''' if self.parse_boolean(self.config.get('enableLocationPermission', 'false')) else ''
+        
+        location_always_perm = f'''<key>NSLocationAlwaysUsageDescription</key>
+	<string>{self.config.get('iosLocationAlwaysUsageDescription', '需要始终访问您的位置信息')}</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>{self.config.get('iosLocationAlwaysUsageDescription', '需要始终访问您的位置信息')}</string>''' if self.parse_boolean(self.config.get('enableLocationPermission', 'false')) else ''
+        
+        microphone_perm = f'''<key>NSMicrophoneUsageDescription</key>
+	<string>{self.config.get('iosMicrophoneUsageDescription', '需要使用麦克风进行录音')}</string>''' if self.parse_boolean(self.config.get('enableMicrophonePermission', 'false')) else ''
+        
+        bluetooth_perm = f'''<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>{self.config.get('iosBluetoothUsageDescription', '需要使用蓝牙连接外部设备')}</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>{self.config.get('iosBluetoothUsageDescription', '需要使用蓝牙连接外部设备')}</string>''' if self.parse_boolean(self.config.get('enableBluetoothPermission', 'false')) else ''
+        
+        contacts_perm = f'''<key>NSContactsUsageDescription</key>
+	<string>{self.config.get('iosContactsUsageDescription', '需要访问通讯录')}</string>''' if self.parse_boolean(self.config.get('enableContactsPermission', 'false')) else ''
+        
+        calendar_perm = f'''<key>NSCalendarsUsageDescription</key>
+	<string>{self.config.get('iosCalendarsUsageDescription', '需要访问日历')}</string>''' if self.parse_boolean(self.config.get('enableCalendarPermission', 'false')) else ''
+        
         replacements = {
+            # 权限占位符
+            '<!-- __PERMISSION_CAMERA__ -->': camera_perm,
+            '<!-- __PERMISSION_PHOTO_LIBRARY__ -->': photo_library_perm,
+            '<!-- __PERMISSION_LOCATION_WHEN_IN_USE__ -->': location_when_in_use_perm,
+            '<!-- __PERMISSION_LOCATION_ALWAYS__ -->': location_always_perm,
+            '<!-- __PERMISSION_MICROPHONE__ -->': microphone_perm,
+            '<!-- __PERMISSION_BLUETOOTH__ -->': bluetooth_perm,
+            '<!-- __PERMISSION_CONTACTS__ -->': contacts_perm,
+            '<!-- __PERMISSION_CALENDAR__ -->': calendar_perm,
             '__APP_NAME__': self.config.get('appName', 'MyWebView'),
             '__APP_DISPLAY_NAME__': self.config.get('iosBundleDisplayName', self.config.get('appDisplayName', 'MyWebView')),
             '__APP_ID__': self.config.get('appId', 'com.mywebviewapp'),

@@ -2,10 +2,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- 网络权限 -->
+    <!-- 基础网络权限 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <!-- __ADDITIONAL_PERMISSIONS__ -->
+    
+    <!-- 动态权限配置（由build_config.py根据app.cfg自动生成） -->
+    <!-- __PERMISSION_CAMERA__ -->
+    <!-- __PERMISSION_STORAGE__ -->
+    <!-- __PERMISSION_LOCATION__ -->
+    <!-- __PERMISSION_MICROPHONE__ -->
+    <!-- __PERMISSION_BLUETOOTH__ -->
+    <!-- __PERMISSION_CONTACTS__ -->
+    <!-- __PERMISSION_CALENDAR__ -->
+    <!-- __EXTRA_PERMISSIONS__ -->
 
     <application
         android:allowBackup="true"
