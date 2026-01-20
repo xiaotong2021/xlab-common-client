@@ -17,13 +17,13 @@ from pathlib import Path
 
 class AppStoreConnectAPI:
     """App Store Connect API 客户端"""
-    
+
     BASE_URL = "https://api.appstoreconnect.apple.com/v1"
-    
+
     def __init__(self, key_id, issuer_id, private_key_path):
         """
         初始化 API 客户端
-        
+
         Args:
             key_id: API Key ID
             issuer_id: Issuer ID
@@ -34,49 +34,49 @@ class AppStoreConnectAPI:
         self.private_key_path = private_key_path
         self.token = None
         self.token_exp = None
-        
+
     def generate_token(self):
         """生成 JWT Token"""
         # Token 有效期20分钟
         exp = datetime.now(timezone.utc) + timedelta(minutes=20)
-        
+
         with open(self.private_key_path, 'r') as f:
             private_key = f.read()
-        
+
         headers = {
             "alg": "ES256",
             "kid": self.key_id,
             "typ": "JWT"
         }
-        
+
         payload = {
             "iss": self.issuer_id,
             "exp": int(exp.timestamp()),
             "aud": "appstoreconnect-v1"
         }
-        
+
         token = jwt.encode(payload, private_key, algorithm="ES256", headers=headers)
         self.token = token
         self.token_exp = exp
         return token
-    
+
     def get_token(self):
         """获取有效的 Token"""
         if self.token is None or datetime.now(timezone.utc) >= self.token_exp:
             return self.generate_token()
         return self.token
-    
+
     def make_request(self, method, endpoint, data=None, params=None, silent_errors=False):
         """
         发送 API 请求
-        
+
         Args:
             method: HTTP 方法 (GET, POST, PATCH, etc.)
             endpoint: API 端点
             data: 请求数据
             params: URL 参数
             silent_errors: 是否静默错误（不打印错误信息）
-            
+
         Returns:
             响应 JSON
         """
@@ -85,7 +85,7 @@ class AppStoreConnectAPI:
             "Authorization": f"Bearer {self.get_token()}",
             "Content-Type": "application/json"
         }
-        
+
         try:
             response = requests.request(
                 method=method,
@@ -102,25 +102,25 @@ class AppStoreConnectAPI:
                 if response.text:
                     print(f"错误详情: {response.text}")
             raise
-    
+
     def find_app_by_bundle_id(self, bundle_id):
         """
         根据 Bundle ID 查找应用
-        
+
         Args:
             bundle_id: 应用的 Bundle ID
-            
+
         Returns:
             应用信息，如果不存在返回 None
         """
         print(f"🔍 查找应用: {bundle_id}")
-        
+
         params = {
             "filter[bundleId]": bundle_id
         }
-        
+
         result = self.make_request("GET", "apps", params=params)
-        
+
         if result and result.get("data"):
             app = result["data"][0]
             print(f"✅ 找到应用: {app['attributes']['name']} (ID: {app['id']})")
@@ -128,34 +128,34 @@ class AppStoreConnectAPI:
         else:
             print(f"❌ 未找到应用: {bundle_id}")
             return None
-    
+
     def get_app_info(self, app_id):
         """
         获取应用详细信息
-        
+
         Args:
             app_id: 应用 ID
-            
+
         Returns:
             应用信息
         """
         return self.make_request("GET", f"apps/{app_id}")
-    
+
     def get_latest_app_version(self, app_id):
         """
         获取应用的最新版本（优先获取编辑中或待提交的版本）
-        
+
         Args:
             app_id: 应用 ID
-                
+
         Returns:
             版本信息字典，包含 id 和 versionString，如果没有找到返回 None
         """
         print(f"🔍 查找应用的现有版本...")
-        
+
         try:
             result = self.make_request("GET", f"apps/{app_id}/appStoreVersions")
-            
+
             if result and result.get("data"):
                 # 优先查找状态为 PREPARE_FOR_SUBMISSION 或 DEVELOPER_REJECTED 的版本
                 for version in result["data"]:
@@ -166,7 +166,7 @@ class AppStoreConnectAPI:
                             version_string = version["attributes"].get("versionString")
                             print(f"✅ 找到可编辑版本: {version_string} (ID: {version_id}, 状态: {state})")
                             return {"id": version_id, "versionString": version_string}
-                
+
                 # 如果没有可编辑的版本，返回第一个版本
                 for version in result["data"]:
                     if version["attributes"].get("platform") == "IOS":
@@ -176,18 +176,18 @@ class AppStoreConnectAPI:
                         print(f"✅ 找到现有版本: {version_string} (ID: {version_id}, 状态: {state})")
                         print(f"⚠️  当前版本状态为 {state}，可能无法编辑元数据")
                         return {"id": version_id, "versionString": version_string}
-            
+
             print(f"❌ 未找到任何版本")
             return None
-            
+
         except Exception as e:
             print(f"❌ 查询版本失败: {e}")
             return None
-    
+
     def update_app_version_info(self, version_id, version_string, locale_data, copyright=None):
         """
         更新应用版本信息（不创建新版本，只更新现有版本）
-        
+
         Args:
             version_id: 版本 ID
             version_string: 版本号（用于显示）
@@ -199,12 +199,12 @@ class AppStoreConnectAPI:
                 - marketingUrl: 营销网址
                 - promotionalText: 推广文本
             copyright: 版权信息（可选）
-                
+
         Returns:
             字典，包含成功更新的locale和对应的数据: {locale: data, ...}
         """
         print(f"📝 更新应用版本信息: {version_string}")
-        
+
         try:
             # 更新版权信息（如果提供）
             if copyright:
@@ -222,34 +222,34 @@ class AppStoreConnectAPI:
                     print(f"✅ 版权信息已更新: {copyright}")
                 except Exception as e:
                     print(f"⚠️  版权信息更新失败: {e}")
-            
+
             # 更新本地化信息
             updated_locales = self.update_version_localizations(version_id, locale_data)
             return updated_locales
-            
+
         except Exception as e:
             print(f"⚠️  更新版本信息失败: {e}")
             return {}
-    
+
     def update_version_localizations(self, version_id, locale_data):
         """
         更新版本本地化信息
-        
+
         Args:
             version_id: 版本 ID
             locale_data: 本地化数据字典，key为语言代码
-            
+
         Returns:
             成功更新的locale字典: {locale: data, ...}
         """
         updated_locales = {}
-        
+
         for locale, data in locale_data.items():
             print(f"🌐 更新本地化信息: {locale}")
-            
+
             # 查找现有本地化（通过版本的关系）
             result = self.make_request("GET", f"appStoreVersions/{version_id}/appStoreVersionLocalizations")
-            
+
             if result and result.get("data"):
                 # 更新现有本地化
                 loc_id = None
@@ -257,7 +257,7 @@ class AppStoreConnectAPI:
                     if loc["attributes"].get("locale") == locale:
                         loc_id = loc["id"]
                         break
-                
+
                 if loc_id:
                     # 尝试更新，使用更智能的错误处理
                     update_data = {
@@ -267,7 +267,7 @@ class AppStoreConnectAPI:
                             "attributes": {}
                         }
                     }
-                    
+
                     # 分别尝试更新每个字段，如果某个字段失败则跳过
                     fields_to_update = []
                     if "description" in data:
@@ -280,18 +280,18 @@ class AppStoreConnectAPI:
                         fields_to_update.append(("marketingUrl", data["marketingUrl"]))
                     if "promotionalText" in data:
                         fields_to_update.append(("promotionalText", data["promotionalText"]))
-                    
+
                     # 先尝试更新基本字段
                     if fields_to_update:
                         for field_name, field_value in fields_to_update:
                             update_data["data"]["attributes"][field_name] = field_value
-                        
+
                         try:
                             self.make_request("PATCH", f"appStoreVersionLocalizations/{loc_id}", data=update_data)
                             print(f"  ✓ 已更新: {', '.join([f[0] for f in fields_to_update])}")
                         except Exception as e:
                             print(f"  ⚠️ 部分字段更新失败: {e}")
-                    
+
                     # whatsNew (releaseNotes) 单独处理，因为它可能在某些状态下无法编辑
                     if "releaseNotes" in data:
                         whatsNew_data = {
@@ -311,7 +311,7 @@ class AppStoreConnectAPI:
                                 print(f"  ⚠️ whatsNew 字段当前无法编辑（版本状态限制）")
                             else:
                                 print(f"  ⚠️ whatsNew 更新失败: {e}")
-                    
+
                     print(f"✅ 本地化信息已更新: {locale}")
                     updated_locales[locale] = data
                 else:
@@ -332,7 +332,7 @@ class AppStoreConnectAPI:
                             }
                         }
                     }
-                    
+
                     # 添加可选字段
                     if "description" in data:
                         localization_data["data"]["attributes"]["description"] = data["description"]
@@ -346,7 +346,7 @@ class AppStoreConnectAPI:
                         localization_data["data"]["attributes"]["marketingUrl"] = data["marketingUrl"]
                     if "promotionalText" in data:
                         localization_data["data"]["attributes"]["promotionalText"] = data["promotionalText"]
-                    
+
                     self.make_request("POST", "appStoreVersionLocalizations", data=localization_data)
                     print(f"✅ 本地化信息已创建: {locale}")
                     updated_locales[locale] = data
@@ -368,7 +368,7 @@ class AppStoreConnectAPI:
                         }
                     }
                 }
-                
+
                 # 添加可选字段
                 if "description" in data:
                     localization_data["data"]["attributes"]["description"] = data["description"]
@@ -382,17 +382,17 @@ class AppStoreConnectAPI:
                     localization_data["data"]["attributes"]["marketingUrl"] = data["marketingUrl"]
                 if "promotionalText" in data:
                     localization_data["data"]["attributes"]["promotionalText"] = data["promotionalText"]
-                
+
                 self.make_request("POST", "appStoreVersionLocalizations", data=localization_data)
                 print(f"✅ 本地化信息已创建: {locale}")
                 updated_locales[locale] = data
-        
+
         return updated_locales
-    
+
     def update_app_info_metadata(self, app_id, metadata):
         """
         更新应用元数据（不依赖版本的信息）
-        
+
         Args:
             app_id: 应用 ID
             metadata: 元数据字典，包含：
@@ -403,15 +403,15 @@ class AppStoreConnectAPI:
                 - copyright: 版权信息
         """
         print(f"📋 更新应用元数据")
-        
+
         # 获取应用信息 ID
         app_info_result = self.make_request("GET", f"apps/{app_id}/appInfos")
         if not app_info_result or not app_info_result.get("data"):
             print(f"⚠️  无法获取应用信息")
             return
-        
+
         app_info_id = app_info_result["data"][0]["id"]
-        
+
         # 更新 appInfo 级别的信息（如版权）
         if metadata.get("copyright"):
             try:
@@ -422,36 +422,36 @@ class AppStoreConnectAPI:
                         "attributes": {}
                     }
                 }
-                
+
                 # 只更新提供的字段
                 if metadata.get("copyright"):
                     appinfo_update["data"]["attributes"]["appStoreState"] = None  # 需要检查正确的字段名
-                
+
                 # 注意：版权信息实际上在 appStoreVersion 上，不在 appInfo 上
                 # 这里先注释掉，后面在 appStoreVersion 中处理
                 # self.make_request("PATCH", f"appInfos/{app_info_id}", data=appinfo_update)
                 print(f"ℹ️  版权信息需要在版本信息中设置")
             except Exception as e:
                 print(f"⚠️  更新 appInfo 失败: {e}")
-        
+
         # 获取应用信息本地化
         for locale in metadata.get("locales", ["zh-Hans", "en-US"]):
             locale_metadata = metadata.get("locale_data", {}).get(locale, {})
-            
+
             if not locale_metadata:
                 continue
-            
+
             # 获取应用信息 ID
             app_info_result = self.make_request("GET", f"apps/{app_id}/appInfos")
             if not app_info_result or not app_info_result.get("data"):
                 print(f"⚠️  无法获取应用信息")
                 continue
-            
+
             app_info_id = app_info_result["data"][0]["id"]
-            
+
             # 查找现有本地化（通过 appInfo 的关系）
             result = self.make_request("GET", f"appInfos/{app_info_id}/appInfoLocalizations")
-            
+
             data = {
                 "data": {
                     "type": "appInfoLocalizations",
@@ -460,7 +460,7 @@ class AppStoreConnectAPI:
                     }
                 }
             }
-            
+
             # 添加可选字段
             if "name" in locale_metadata:
                 data["data"]["attributes"]["name"] = locale_metadata["name"]
@@ -470,7 +470,7 @@ class AppStoreConnectAPI:
                 data["data"]["attributes"]["privacyPolicyUrl"] = locale_metadata["privacyPolicyUrl"]
             if "subtitle" in locale_metadata:
                 data["data"]["attributes"]["subtitle"] = locale_metadata["subtitle"]
-            
+
             # 查找匹配的本地化
             loc_id = None
             if result and result.get("data"):
@@ -478,7 +478,7 @@ class AppStoreConnectAPI:
                     if loc["attributes"].get("locale") == locale:
                         loc_id = loc["id"]
                         break
-            
+
             if loc_id:
                 # 更新现有本地化
                 # 注意：UPDATE 请求中不能包含 locale 属性
@@ -489,7 +489,7 @@ class AppStoreConnectAPI:
                         "attributes": {}
                     }
                 }
-                
+
                 # 只包含需要更新的属性（不包括 locale）
                 if "name" in locale_metadata:
                     update_data["data"]["attributes"]["name"] = locale_metadata["name"]
@@ -499,7 +499,7 @@ class AppStoreConnectAPI:
                     update_data["data"]["attributes"]["privacyPolicyUrl"] = locale_metadata["privacyPolicyUrl"]
                 if "subtitle" in locale_metadata:
                     update_data["data"]["attributes"]["subtitle"] = locale_metadata["subtitle"]
-                
+
                 try:
                     self.make_request("PATCH", f"appInfoLocalizations/{loc_id}", data=update_data)
                 except Exception as e:
@@ -517,7 +517,7 @@ class AppStoreConnectAPI:
                 if "name" not in data["data"]["attributes"]:
                     print(f"⚠️  创建本地化时缺少 name 属性，跳过: {locale}")
                     continue
-                
+
                 data["data"]["relationships"] = {
                     "appInfo": {
                         "data": {
@@ -527,29 +527,29 @@ class AppStoreConnectAPI:
                     }
                 }
                 self.make_request("POST", "appInfoLocalizations", data=data)
-            
+
             print(f"✅ 应用元数据已更新: {locale}")
-    
+
     def update_app_categories(self, app_id, primary_category, secondary_category=None):
         """
         更新应用类别（通过 appInfo）
-        
+
         Args:
             app_id: 应用 ID
             primary_category: 主要类别 ID
             secondary_category: 次要类别 ID（可选）
         """
         print(f"📂 更新应用类别")
-        
+
         try:
             # 获取 appInfo
             app_info_result = self.make_request("GET", f"apps/{app_id}/appInfos")
             if not app_info_result or not app_info_result.get("data"):
                 print(f"⚠️  无法获取应用信息")
                 return False
-            
+
             app_info_id = app_info_result["data"][0]["id"]
-            
+
             # 更新 appInfo 的类别
             update_data = {
                 "data": {
@@ -565,7 +565,7 @@ class AppStoreConnectAPI:
                     }
                 }
             }
-            
+
             if secondary_category:
                 update_data["data"]["relationships"]["primarySubcategoryOne"] = {
                     "data": {
@@ -573,7 +573,7 @@ class AppStoreConnectAPI:
                         "id": secondary_category
                     }
                 }
-            
+
             self.make_request("PATCH", f"appInfos/{app_info_id}", data=update_data)
             print(f"✅ 应用类别已更新")
             return True
@@ -587,11 +587,11 @@ class AppStoreConnectAPI:
             else:
                 print(f"⚠️  应用类别更新失败: {e}")
                 return False
-    
+
     def update_app_review_details(self, version_id, contact_info):
         """
         更新审核联系信息
-        
+
         Args:
             version_id: 版本 ID
             contact_info: 联系信息字典，包含：
@@ -605,15 +605,15 @@ class AppStoreConnectAPI:
                 - notes: 备注（可选）
         """
         print(f"📞 更新审核联系信息")
-        
+
         # 查找现有的审核详情
         try:
             result = self.make_request("GET", f"appStoreVersions/{version_id}/appStoreReviewDetail")
-            
+
             if result and result.get("data"):
                 # 更新现有的审核详情
                 review_detail_id = result["data"]["id"]
-                
+
                 update_data = {
                     "data": {
                         "type": "appStoreReviewDetails",
@@ -621,7 +621,7 @@ class AppStoreConnectAPI:
                         "attributes": {}
                     }
                 }
-                
+
                 # 添加联系信息
                 if "firstName" in contact_info:
                     update_data["data"]["attributes"]["contactFirstName"] = contact_info["firstName"]
@@ -639,7 +639,7 @@ class AppStoreConnectAPI:
                     update_data["data"]["attributes"]["demoAccountRequired"] = contact_info["demoAccountRequired"]
                 if "notes" in contact_info:
                     update_data["data"]["attributes"]["notes"] = contact_info["notes"]
-                
+
                 self.make_request("PATCH", f"appStoreReviewDetails/{review_detail_id}", data=update_data)
             else:
                 # 创建新的审核详情
@@ -657,7 +657,7 @@ class AppStoreConnectAPI:
                         }
                     }
                 }
-                
+
                 # 添加联系信息
                 if "firstName" in contact_info:
                     create_data["data"]["attributes"]["contactFirstName"] = contact_info["firstName"]
@@ -675,46 +675,46 @@ class AppStoreConnectAPI:
                     create_data["data"]["attributes"]["demoAccountRequired"] = contact_info["demoAccountRequired"]
                 if "notes" in contact_info:
                     create_data["data"]["attributes"]["notes"] = contact_info["notes"]
-                
+
                 self.make_request("POST", "appStoreReviewDetails", data=create_data)
-            
+
             print(f"✅ 审核联系信息已更新")
             return True
         except Exception as e:
             print(f"⚠️  审核联系信息更新失败: {e}")
             return False
-    
+
     def attach_build_to_version(self, app_id, version_id, build_number=None):
         """
         将构建版本关联到 App Store 版本
-        
+
         Args:
             app_id: 应用 ID
             version_id: 版本 ID
             build_number: 构建号（如果为 None，则使用最新的构建）
         """
         print(f"🔗 关联构建版本到 App Store 版本")
-        
+
         try:
             # 获取可用的构建列表（最多100个）
             builds_result = self.make_request("GET", f"apps/{app_id}/builds", params={
                 "limit": 100
             })
-            
+
             if not builds_result or not builds_result.get("data"):
                 print(f"⚠️  未找到可用的构建")
                 print(f"提示: 请确保已通过 TestFlight 上传构建，并等待构建处理完成")
                 return False
-            
+
             # 列出所有可用的构建
             print(f"📋 可用的构建列表 (共 {len(builds_result['data'])} 个):")
             for i, build in enumerate(builds_result["data"], 1):
                 build_ver = build["attributes"].get("version")
-                build_num = build["attributes"].get("buildNumber")  
+                build_num = build["attributes"].get("buildNumber")
                 upload_date = build["attributes"].get("uploadedDate", "")[:10]
                 processing_state = build["attributes"].get("processingState", "UNKNOWN")
                 print(f"  {i}. 版本: {build_ver}, 构建号: {build_num}, 上传日期: {upload_date}, 状态: {processing_state}")
-            
+
             # 选择构建
             selected_build = None
             if build_number:
@@ -734,7 +734,7 @@ class AppStoreConnectAPI:
                     build for build in builds_result["data"]
                     if build["attributes"].get("processingState") == "VALID"
                 ]
-                
+
                 if valid_builds:
                     # 在 VALID 构建中，选择版本号数值最大的
                     selected_build = max(valid_builds, key=lambda b: int(b["attributes"].get("version", "0")))
@@ -743,13 +743,13 @@ class AppStoreConnectAPI:
                     # 如果没有 VALID 状态的构建，使用列表第一个
                     selected_build = builds_result["data"][0]
                     print(f"⚠️  未找到VALID状态的构建，使用第一个可用构建")
-            
+
             build_id = selected_build["id"]
             build_version = selected_build["attributes"].get("version")
             build_state = selected_build["attributes"].get("processingState", "UNKNOWN")
-            
+
             print(f"📦 选择构建: {build_version} (ID: {build_id}, 状态: {build_state})")
-            
+
             # 关联构建到版本
             update_data = {
                 "data": {
@@ -765,36 +765,36 @@ class AppStoreConnectAPI:
                     }
                 }
             }
-            
+
             self.make_request("PATCH", f"appStoreVersions/{version_id}", data=update_data)
             print(f"✅ 构建已关联到版本")
             return True
-            
+
         except Exception as e:
             print(f"⚠️  关联构建失败: {e}")
             print(f"提示: 这可能是因为构建还在处理中，或者版本状态不允许关联构建")
             return False
-    
+
     def upload_screenshot(self, version_localization_id, screenshot_path, display_type, clear_existing=False):
         """
         上传截图
-        
+
         Args:
             version_localization_id: 版本本地化 ID
             screenshot_path: 截图文件路径
             display_type: 显示类型 (如 APP_IPHONE_67, APP_IPAD_PRO_3GEN_129)
             clear_existing: 是否清空现有截图（默认 False，即追加模式）
-            
+
         Returns:
             截图信息
         """
         import os
-        
+
         file_size = os.path.getsize(screenshot_path)
         filename = os.path.basename(screenshot_path)
-        
+
         print(f"📤 上传截图: {filename} ({display_type}, {file_size} bytes)")
-        
+
         # 步骤 1: 创建截图保留位置
         create_data = {
             "data": {
@@ -812,22 +812,22 @@ class AppStoreConnectAPI:
                 }
             }
         }
-        
+
         # 查找或创建截图集（通过 appStoreVersionLocalization 的关系）
         screenshot_set_id = None
         existing_screenshots = []
-        
+
         try:
             # 通过关系端点获取现有的截图集
             result = self.make_request("GET", f"appStoreVersionLocalizations/{version_localization_id}/appScreenshotSets")
-            
+
             if result and result.get("data"):
                 # 查找匹配的显示类型
                 for screenshot_set in result["data"]:
                     if screenshot_set["attributes"].get("screenshotDisplayType") == display_type:
                         screenshot_set_id = screenshot_set["id"]
                         print(f"✅ 找到现有截图集: {screenshot_set_id}")
-                        
+
                         # 获取截图集中的现有截图
                         try:
                             screenshots_result = self.make_request("GET", f"appScreenshotSets/{screenshot_set_id}/appScreenshots")
@@ -839,7 +839,7 @@ class AppStoreConnectAPI:
                         break
         except Exception as e:
             print(f"⚠️ 查询截图集失败: {e}")
-        
+
         # 如果没有找到，创建新的截图集
         if not screenshot_set_id:
             result = self.make_request("POST", "appScreenshotSets", data=create_data)
@@ -856,7 +856,7 @@ class AppStoreConnectAPI:
                         print(f"  ✓ 已删除截图: {old_screenshot_id}")
                     except Exception as e:
                         print(f"  ⚠️ 删除截图失败: {e}")
-        
+
         # 步骤 2: 创建截图并获取上传 URL
         screenshot_data = {
             "data": {
@@ -875,26 +875,26 @@ class AppStoreConnectAPI:
                 }
             }
         }
-        
+
         result = self.make_request("POST", "appScreenshots", data=screenshot_data)
         screenshot_id = result["data"]["id"]
         upload_operations = result["data"]["attributes"]["uploadOperations"]
-        
+
         print(f"✅ 创建截图记录: {screenshot_id}")
-        
+
         # 步骤 3: 上传截图文件
         with open(screenshot_path, 'rb') as f:
             file_data = f.read()
-        
+
         for operation in upload_operations:
             method = operation["method"]
             url = operation["url"]
             headers = {header["name"]: header["value"] for header in operation.get("requestHeaders", [])}
-            
+
             print(f"📤 上传文件数据...")
             response = requests.request(method, url, headers=headers, data=file_data)
             response.raise_for_status()
-        
+
         # 步骤 4: 确认上传完成
         commit_data = {
             "data": {
@@ -906,27 +906,82 @@ class AppStoreConnectAPI:
                 }
             }
         }
-        
+
         self.make_request("PATCH", f"appScreenshots/{screenshot_id}", data=commit_data)
-        
+
         print(f"✅ 截图上传成功: {filename}")
-        
+
         return result["data"]
-    
+
     def _calculate_md5(self, file_path):
         """计算文件的 MD5 校验和"""
         import hashlib
-        
+
         md5 = hashlib.md5()
         with open(file_path, 'rb') as f:
             for chunk in iter(lambda: f.read(4096), b""):
                 md5.update(chunk)
         return md5.hexdigest()
-    
-    def upload_screenshots_for_version(self, version_id, screenshots_dir, device_screenshot_mapping, primary_locale=None):
+
+    def check_existing_screenshots(self, version_id):
+        """
+        检查指定版本是否已有截图
+
+        Args:
+            version_id: 版本 ID
+
+        Returns:
+            dict: 各设备类型的截图数量，如 {'APP_IPHONE_67': 3, 'APP_IPAD_PRO_3GEN_129': 2}
+        """
+        print(f"🔍 检查应用现有截图...")
+
+        existing_screenshots = {}
+
+        try:
+            # 获取版本的本地化信息
+            result = self.make_request("GET", f"appStoreVersions/{version_id}/appStoreVersionLocalizations")
+
+            if not result or not result.get("data"):
+                print(f"  ℹ️  未找到版本本地化信息")
+                return existing_screenshots
+
+            # 检查每个本地化的截图
+            for localization in result["data"]:
+                localization_id = localization["id"]
+                locale = localization["attributes"]["locale"]
+
+                # 获取该本地化的所有截图集
+                screenshot_sets_result = self.make_request("GET", f"appStoreVersionLocalizations/{localization_id}/appScreenshotSets")
+
+                if screenshot_sets_result and screenshot_sets_result.get("data"):
+                    for screenshot_set in screenshot_sets_result["data"]:
+                        display_type = screenshot_set["attributes"].get("screenshotDisplayType")
+
+                        # 获取该截图集中的截图数量
+                        screenshots_result = self.make_request("GET", f"appScreenshotSets/{screenshot_set['id']}/appScreenshots")
+
+                        if screenshots_result and screenshots_result.get("data"):
+                            count = len(screenshots_result["data"])
+                            if display_type not in existing_screenshots:
+                                existing_screenshots[display_type] = 0
+                            existing_screenshots[display_type] = max(existing_screenshots[display_type], count)
+
+            if existing_screenshots:
+                print(f"  ✅ 发现现有截图:")
+                for display_type, count in existing_screenshots.items():
+                    print(f"    • {display_type}: {count} 张")
+            else:
+                print(f"  ℹ️  未发现现有截图")
+
+        except Exception as e:
+            print(f"  ⚠️  检查截图失败: {e}")
+
+        return existing_screenshots
+
+    def upload_screenshots_for_version(self, version_id, screenshots_dir, device_screenshot_mapping, primary_locale=None, skip_if_exists=True):
         """
         为指定版本上传截图（支持多张截图）
-        
+
         Args:
             version_id: 版本 ID
             screenshots_dir: 截图目录
@@ -934,7 +989,8 @@ class AppStoreConnectAPI:
                 格式: {'iPhone_6.7': ['screenshot_iPhone_6.7_1.png', 'screenshot_iPhone_6.7_2.png'], ...}
                 或旧格式: {'iPhone_6.7': 'screenshot_iPhone_6.7.png', ...}
             primary_locale: 主要语言（可选，如果指定则只为该语言上传，否则为所有语言上传）
-                
+            skip_if_exists: 如果已有截图则跳过上传（默认True）
+
         Returns:
             成功上传的截图字典: {'device_type': ['filename1', 'filename2', ...], ...}
         """
@@ -946,72 +1002,92 @@ class AppStoreConnectAPI:
             'iPad_12.9_3rd': 'APP_IPAD_PRO_3GEN_129',
             'iPad_12.9_2nd': 'APP_IPAD_PRO_129',
         }
-        
+
         print(f"📸 上传版本截图")
-        
+
+        # 先检查是否已有截图
+        if skip_if_exists:
+            existing_screenshots = self.check_existing_screenshots(version_id)
+
+            if existing_screenshots:
+                print(f"\n⚠️  检测到应用已有截图，跳过截图生成和上传")
+                print(f"提示: 如需重新上传截图，请在 App Store Connect 中先删除现有截图")
+                print(f"或者将配置项 skipScreenshotIfExists 设置为 false\n")
+
+                # 返回已有截图信息（转换为设备类型格式）
+                existing_by_device = {}
+                for display_type, count in existing_screenshots.items():
+                    # 反向查找设备类型
+                    for device_type, dt in DEVICE_TYPE_MAPPING.items():
+                        if dt == display_type:
+                            existing_by_device[device_type] = [f"existing_{i}.png" for i in range(1, count + 1)]
+                            break
+
+                return existing_by_device
+
         # 记录成功上传的截图
         uploaded_screenshots = {}
-        
+
         # 获取版本的本地化信息（通过版本的关系）
         result = self.make_request("GET", f"appStoreVersions/{version_id}/appStoreVersionLocalizations")
-        
+
         if not result or not result.get("data"):
             print(f"⚠️  未找到版本本地化信息")
             return uploaded_screenshots
-        
+
         # 选择要上传截图的本地化
         localizations_to_upload = []
-        
+
         if primary_locale:
             # 只为主要语言上传
             for loc in result["data"]:
                 if loc["attributes"]["locale"] == primary_locale:
                     localizations_to_upload.append(loc)
                     break
-            
+
             if not localizations_to_upload:
                 print(f"⚠️  未找到主要语言 {primary_locale}，使用第一个本地化")
                 localizations_to_upload.append(result["data"][0])
         else:
             # 为所有语言上传（通常截图对所有语言是相同的）
             localizations_to_upload = result["data"]
-        
+
         print(f"📱 将为 {len(localizations_to_upload)} 个语言上传截图")
-        
+
         # 为每个本地化上传截图
         for localization in localizations_to_upload:
             localization_id = localization["id"]
             locale = localization["attributes"]["locale"]
-            
+
             print(f"\n📱 上传截图 - 语言: {locale}")
-        
+
             # 上传每个设备类型的截图
             for device_type, screenshot_files in device_screenshot_mapping.items():
                 # 兼容旧格式（单个文件名字符串）和新格式（文件名列表）
                 if isinstance(screenshot_files, str):
                     screenshot_files = [screenshot_files]
-                
+
                 # 将设备类型映射到 App Store Connect 的显示类型
                 display_type = DEVICE_TYPE_MAPPING.get(device_type)
-                
+
                 if not display_type:
                     print(f"⚠️  未知的设备类型: {device_type}")
                     continue
-                
+
                 print(f"  📱 {device_type} - 准备上传 {len(screenshot_files)} 张截图")
-                
+
                 # 初始化设备类型的上传记录
                 if device_type not in uploaded_screenshots:
                     uploaded_screenshots[device_type] = []
-                
+
                 # 上传该设备类型的所有截图
                 for index, screenshot_filename in enumerate(screenshot_files, 1):
                     screenshot_path = os.path.join(screenshots_dir, screenshot_filename)
-                    
+
                     if not os.path.exists(screenshot_path):
                         print(f"  ⚠️  截图不存在: {screenshot_path}")
                         continue
-                    
+
                     try:
                         # 第一张截图清空旧截图，后续截图追加
                         clear_existing = (index == 1)
@@ -1023,26 +1099,26 @@ class AppStoreConnectAPI:
                     except Exception as e:
                         print(f"  ❌ 上传截图失败 ({device_type} #{index}): {e}")
                         continue
-                
+
                 if uploaded_screenshots[device_type]:
                     print(f"  ✅ {device_type} 共上传 {len(uploaded_screenshots[device_type])} 张截图")
-        
+
         return uploaded_screenshots
 
 
 def unescape_string(text):
     """
     将字符串中的转义字符转换为实际字符
-    
+
     Args:
         text: 原始文本
-        
+
     Returns:
         转换后的文本
     """
     if not text:
         return text
-    
+
     # 替换常见的转义字符
     replacements = {
         '\\n': '\n',   # 换行符
@@ -1050,11 +1126,11 @@ def unescape_string(text):
         '\\t': '\t',   # 制表符
         '\\\\': '\\',  # 反斜杠（需要最后处理）
     }
-    
+
     result = text
     for escape_seq, actual_char in replacements.items():
         result = result.replace(escape_seq, actual_char)
-    
+
     return result
 
 
@@ -1075,9 +1151,9 @@ def main():
     if len(sys.argv) < 2:
         print("用法: python app_store_connect.py <workspace_path>")
         sys.exit(1)
-    
+
     workspace_path = sys.argv[1]
-    
+
     # 读取 build.app 获取应用名称
     build_app_path = os.path.join(workspace_path, "assets", "build.app")
     with open(build_app_path, 'r') as f:
@@ -1085,57 +1161,57 @@ def main():
             if line.startswith('appName='):
                 app_name = line.split('=')[1].strip()
                 break
-    
+
     # 读取应用配置
     config_file = os.path.join(workspace_path, "assets", app_name, "app.cfg")
     print(f"📖 读取配置文件: {config_file}")
     config = read_config(config_file)
-    
+
     # 获取必要的配置
     bundle_id = config.get('appId')
     app_display_name = config.get('appDisplayName', app_name)
-    
+
     # 获取英文应用名称（用于创建 Bundle ID）
     # Bundle ID 名称不支持中文，优先使用英文名称
-    app_display_name_en = config.get('appDisplayName_en_US', 
-                                     config.get('appDisplayName_en', 
+    app_display_name_en = config.get('appDisplayName_en_US',
+                                     config.get('appDisplayName_en',
                                      app_display_name))
-    
+
     app_version = config.get('appVersion', '1.0.0')
     sku = config.get('iosSku', bundle_id.replace('.', '-'))
-    
+
     # App Store Connect API 凭证
     api_key_id = os.environ.get('APP_STORE_API_KEY_ID')
     api_issuer_id = os.environ.get('APP_STORE_API_ISSUER_ID')
     api_key_path = os.path.expanduser('~/.appstoreconnect/private_keys/AuthKey_' + api_key_id + '.p8')
-    
+
     if not api_key_id or not api_issuer_id:
         print("❌ 错误: 未设置 APP_STORE_API_KEY_ID 或 APP_STORE_API_ISSUER_ID 环境变量")
         sys.exit(1)
-    
+
     if not os.path.exists(api_key_path):
         print(f"❌ 错误: API 密钥文件不存在: {api_key_path}")
         sys.exit(1)
-    
+
     print(f"Bundle ID: {bundle_id}")
     print(f"应用名称: {app_display_name}")
     print(f"版本: {app_version}")
     print(f"SKU: {sku}")
     print()
-    
+
     # 初始化 API 客户端
     api = AppStoreConnectAPI(api_key_id, api_issuer_id, api_key_path)
-    
+
     # 检查配置
     enable_update_metadata = config.get('enableUpdateMetadata', 'true').lower() == 'true'
-    
+
     print(f"配置: enableUpdateMetadata={enable_update_metadata}")
     print()
-    
+
     # 查找应用（只查找，不创建）
     primary_locale = config.get('iosPrimaryLocale', 'zh-Hans')
     app = api.find_app_by_bundle_id(bundle_id)
-    
+
     if app is None:
         # 应用不存在
         print(f"❌ 应用不存在: {bundle_id}")
@@ -1165,60 +1241,60 @@ def main():
         print("注意: Apple 不支持通过 API 创建新应用")
         print("=" * 60)
         sys.exit(1)
-    
+
     app_id = app['id']
-    
+
     print()
     print(f"✅ 找到应用 (ID: {app_id})")
     print()
-    
+
     # 准备本地化数据
     locale_data = {}
-    
+
     # 支持的语言
     locales = config.get('iosLocales', 'zh-Hans,en-US').split(',')
-    
+
     for locale in locales:
         locale = locale.strip()
         locale_prefix = locale.replace('-', '_')
-        
+
         locale_info = {}
-        
+
         # 应用描述（支持转义字符）
         if config.get(f'appDescription_{locale_prefix}'):
             locale_info['description'] = unescape_string(config[f'appDescription_{locale_prefix}'])
         elif config.get('appDescription'):
             locale_info['description'] = unescape_string(config['appDescription'])
-        
+
         # 关键词（支持转义字符）
         if config.get(f'appKeywords_{locale_prefix}'):
             locale_info['keywords'] = unescape_string(config[f'appKeywords_{locale_prefix}'])
         elif config.get('appKeywords'):
             locale_info['keywords'] = unescape_string(config['appKeywords'])
-        
+
         # 技术支持网址
         if config.get('appSupportUrl'):
             locale_info['supportUrl'] = config['appSupportUrl']
-        
+
         # 营销网址
         if config.get('appMarketingUrl'):
             locale_info['marketingUrl'] = config['appMarketingUrl']
-        
+
         # 推广文本（支持转义字符）
         if config.get(f'appPromotionalText_{locale_prefix}'):
             locale_info['promotionalText'] = unescape_string(config[f'appPromotionalText_{locale_prefix}'])
         elif config.get('appPromotionalText'):
             locale_info['promotionalText'] = unescape_string(config['appPromotionalText'])
-        
+
         # 更新说明（支持转义字符）
         if config.get(f'appReleaseNotes_{locale_prefix}'):
             locale_info['releaseNotes'] = unescape_string(config[f'appReleaseNotes_{locale_prefix}'])
         elif config.get('appReleaseNotes'):
             locale_info['releaseNotes'] = unescape_string(config['appReleaseNotes'])
-        
+
         if locale_info:
             locale_data[locale] = locale_info
-    
+
     # 初始化更新汇总
     update_summary = {
         "app_name": app_name,
@@ -1236,10 +1312,10 @@ def main():
         "build_attached": False,
         "errors": []
     }
-    
+
     # 获取应用现有版本信息
     version_info = api.get_latest_app_version(app_id)
-    
+
     if not version_info:
         print()
         print("⚠️  无法获取应用版本信息")
@@ -1253,24 +1329,24 @@ def main():
         current_version = version_info["versionString"]
         update_summary["version"] = current_version
         print(f"ℹ️  将使用现有版本: {current_version}")
-    
+
     # 根据配置决定是否更新元数据
     if enable_update_metadata:
         print()
         print("🔄 更新元数据已启用")
-        
+
         # 更新版本信息
         if version_id and locale_data:
             try:
                 # 读取版权信息（支持转义字符）
                 copyright_text = unescape_string(config.get('appCopyright'))
-                
+
                 updated_locales = api.update_app_version_info(version_id, current_version, locale_data, copyright=copyright_text)
-                
+
                 # 记录版权信息
                 if copyright_text:
                     update_summary["copyright"] = copyright_text
-                
+
                 if updated_locales:
                     # 记录成功更新的版本本地化信息
                     for locale, data in updated_locales.items():
@@ -1284,7 +1360,7 @@ def main():
                         }
                     print()
                     print(f"✅ 版本本地化信息已更新 ({len(updated_locales)}/{len(locale_data)} 个语言)")
-                    
+
                     # 记录失败的locale
                     failed_locales = set(locale_data.keys()) - set(updated_locales.keys())
                     if failed_locales:
@@ -1303,40 +1379,40 @@ def main():
             print()
             print("⚠️  跳过版本信息更新（未找到版本）")
             update_summary["errors"].append("跳过版本信息更新（未找到版本）")
-        
+
         # 更新应用元数据
         metadata = {
             "locales": locales,
             "locale_data": {}
         }
-        
+
         for locale in locales:
             locale = locale.strip()
             locale_prefix = locale.replace('-', '_')
-            
+
             locale_metadata = {}
-            
+
             # name 是必需的，优先使用特定语言的 appDisplayName，否则使用通用的
             if config.get(f'appDisplayName_{locale_prefix}'):
                 locale_metadata['name'] = config[f'appDisplayName_{locale_prefix}']
             elif config.get('appDisplayName'):
                 locale_metadata['name'] = config['appDisplayName']
-            
+
             if config.get('appPrivacyPolicyUrl'):
                 locale_metadata['privacyPolicyUrl'] = config['appPrivacyPolicyUrl']
-            
+
             if config.get(f'appSubtitle_{locale_prefix}'):
                 locale_metadata['subtitle'] = unescape_string(config[f'appSubtitle_{locale_prefix}'])
             elif config.get('appSubtitle'):
                 locale_metadata['subtitle'] = unescape_string(config['appSubtitle'])
-            
+
             # 只有当有 name 属性时才添加到 locale_data（因为创建时 name 是必需的）
             if locale_metadata and 'name' in locale_metadata:
                 metadata["locale_data"][locale] = locale_metadata
             elif locale_metadata:
                 print(f"⚠️  跳过本地化 {locale}，缺少应用名称 (appDisplayName)")
 
-        
+
         if metadata["locale_data"]:
             try:
                 api.update_app_info_metadata(app_id, metadata)
@@ -1371,7 +1447,7 @@ def main():
                 contact_info['demoAccountPassword'] = config['appDemoAccountPassword']
             if config.get('appDemoAccountRequired'):
                 contact_info['demoAccountRequired'] = config['appDemoAccountRequired'].lower() == 'true'
-            
+
             if contact_info:
                 print()
                 try:
@@ -1383,7 +1459,7 @@ def main():
                 except Exception as e:
                     print(f"⚠️  审核联系信息更新异常: {e}")
                     update_summary["errors"].append(f"审核联系信息更新异常: {str(e)}")
-        
+
         # 更新应用类别
         if config.get('appCategoryId'):
             print()
@@ -1401,7 +1477,7 @@ def main():
             except Exception as e:
                 print(f"⚠️  应用类别更新异常: {e}")
                 update_summary["errors"].append(f"应用类别更新异常: {str(e)}")
-        
+
         # 关联构建版本
         if version_id:
             print()
@@ -1419,14 +1495,14 @@ def main():
         print()
         print("ℹ️  元数据更新已禁用 (enableUpdateMetadata=false)")
         print("提示: 如需更新应用元数据，请在 app.cfg 中设置 enableUpdateMetadata=true")
-    
+
     # 上传截图（如果启用）
     enable_screenshots = config.get('enableScreenshotUpload', 'false').lower() == 'true'
-    
+
     if enable_screenshots:
         print()
         print("📸 准备上传截图...")
-        
+
         if not version_id:
             print(f"⚠️  无法上传截图：未找到应用版本")
             print(f"提示: 请先在 App Store Connect 中创建版本")
@@ -1435,15 +1511,15 @@ def main():
             # 检查截图目录
             screenshots_dir = os.path.join(workspace_path, "screenshots", app_name)
             screenshots_json = os.path.join(screenshots_dir, "screenshots.json")
-            
+
             if os.path.exists(screenshots_json):
                 print(f"✅ 找到截图列表: {screenshots_json}")
                 print(f"🔍 使用版本 {current_version} (ID: {version_id}) 上传截图...")
-                
+
                 # 读取截图映射
                 with open(screenshots_json, 'r') as f:
                     screenshot_mapping = json.load(f)
-                
+
                 # 将截图文件名映射转换为标准格式（列表）
                 screenshot_files = {}
                 for device_type, files in screenshot_mapping.items():
@@ -1455,22 +1531,22 @@ def main():
                     else:
                         print(f"⚠️  未知的截图格式: {device_type}")
                         continue
-                
+
                 # 上传截图
                 try:
                     # 使用主要语言上传截图（通常截图对所有语言是相同的）
                     uploaded_screenshots = api.upload_screenshots_for_version(
-                        version_id, 
-                        screenshots_dir, 
+                        version_id,
+                        screenshots_dir,
                         screenshot_files,
                         primary_locale=primary_locale
                     )
-                    
+
                     # 记录成功上传的截图
                     if uploaded_screenshots:
                         for device_type, filenames in uploaded_screenshots.items():
                             update_summary["screenshots"][device_type] = filenames
-                        
+
                         # 计算总截图数
                         total_uploaded = sum(len(files) for files in uploaded_screenshots.values())
                         total_expected = sum(len(files) for files in screenshot_files.values())
@@ -1478,13 +1554,13 @@ def main():
                     else:
                         print(f"⚠️  所有截图上传失败")
                         update_summary["errors"].append("所有截图上传失败")
-                    
+
                     # 记录失败的设备类型
                     failed_devices = set(screenshot_files.keys()) - set(uploaded_screenshots.keys())
                     if failed_devices:
                         for device_type in failed_devices:
                             update_summary["errors"].append(f"截图上传失败: {device_type}")
-                        
+
                 except Exception as e:
                     print(f"⚠️  截图上传异常: {e}")
                     print(f"提示: 截图上传失败不影响应用创建，可以稍后在 App Store Connect 手动上传")
@@ -1496,14 +1572,14 @@ def main():
     else:
         print()
         print("ℹ️  截图上传已禁用 (enableScreenshotUpload=false)")
-    
+
     # 打印详细的更新汇总
     print()
     print("=" * 80)
     print("📊 元数据更新汇总报告")
     print("=" * 80)
     print()
-    
+
     # 基本信息
     print("📱 应用信息:")
     print(f"  • 应用名称: {update_summary['app_name']}")
@@ -1516,7 +1592,7 @@ def main():
     if update_summary.get('copyright'):
         print(f"  • 版权信息: {update_summary['copyright']}")
     print()
-    
+
     # 版本本地化信息
     if update_summary['version_localizations']:
         print("📝 版本本地化信息更新:")
@@ -1542,7 +1618,7 @@ def main():
         if enable_update_metadata and version_id:
             print("⚠️  版本本地化信息: 未更新")
             print()
-    
+
     # 应用信息本地化
     if update_summary['app_info_localizations']:
         print("ℹ️  应用信息本地化更新:")
@@ -1559,7 +1635,7 @@ def main():
         if enable_update_metadata:
             print("⚠️  应用信息本地化: 未更新")
             print()
-    
+
     # 截图上传
     if update_summary['screenshots']:
         print("📸 截图上传:")
@@ -1576,7 +1652,7 @@ def main():
         if enable_screenshots:
             print("⚠️  截图: 未上传")
             print()
-    
+
     # 审核联系信息
     if update_summary.get('review_contact'):
         print("📞 审核联系信息:")
@@ -1591,7 +1667,7 @@ def main():
             notes_preview = contact['notes'][:60] + "..." if len(contact['notes']) > 60 else contact['notes']
             print(f"  ✓ 备注: {notes_preview}")
         print()
-    
+
     # 应用类别
     if update_summary.get('category'):
         print("📂 应用类别:")
@@ -1599,27 +1675,27 @@ def main():
         if update_summary['category'].get('secondary'):
             print(f"  ✓ 次要类别 ID: {update_summary['category']['secondary']}")
         print()
-    
+
     # 构建版本关联
     if update_summary.get('build_attached'):
         print("📦 构建版本:")
         print(f"  ✓ 已关联最新构建到版本")
         print()
-    
+
     # 错误和警告
     if update_summary['errors']:
         print("⚠️  警告/错误:")
         for error in update_summary['errors']:
             print(f"  • {error}")
         print()
-    
+
     # 配置状态
     print("⚙️  配置状态:")
     print(f"  • App Store Connect: {'✅ 已启用' if config.get('enableAppStoreConnect', 'false').lower() == 'true' else '❌ 已禁用'}")
     print(f"  • 元数据更新: {'✅ 已启用' if enable_update_metadata else '❌ 已禁用'}")
     print(f"  • 截图上传: {'✅ 已启用' if enable_screenshots else '❌ 已禁用'}")
     print()
-    
+
     print("=" * 80)
     print("✅ 所有操作完成!")
     print("=" * 80)

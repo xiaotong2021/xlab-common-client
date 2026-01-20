@@ -279,6 +279,95 @@ def read_config(config_file):
     return config
 
 
+def check_if_screenshots_should_skip(config, workspace_path, app_name):
+    """
+    检查是否应该跳过截图生成
+    
+    Args:
+        config: 配置字典
+        workspace_path: 工作目录路径
+        app_name: 应用名称
+    
+    Returns:
+        (should_skip, reason): 是否跳过和原因
+    """
+    # 检查是否启用了 App Store Connect
+    enable_asc = config.get('enableAppStoreConnect', 'false').lower() == 'true'
+    
+    # 检查是否启用了截图上传
+    enable_screenshot_upload = config.get('enableScreenshotUpload', 'false').lower() == 'true'
+    
+    # 如果没有启用 App Store Connect 或截图上传，不需要检查
+    if not enable_asc or not enable_screenshot_upload:
+        return False, ""
+    
+    # 检查配置项：是否在已有截图时跳过
+    skip_if_exists = config.get('skipScreenshotIfExists', 'true').lower() == 'true'
+    
+    if not skip_if_exists:
+        return False, ""
+    
+    # 检查是否有 App Store Connect API 凭证
+    api_key_id = os.environ.get('APP_STORE_API_KEY_ID')
+    api_issuer_id = os.environ.get('APP_STORE_API_ISSUER_ID')
+    
+    if not api_key_id or not api_issuer_id:
+        # 没有 API 凭证，无法检查，继续生成
+        return False, ""
+    
+    api_key_path = os.path.expanduser('~/.appstoreconnect/private_keys/AuthKey_' + api_key_id + '.p8')
+    
+    if not os.path.exists(api_key_path):
+        # API 密钥文件不存在，无法检查，继续生成
+        return False, ""
+    
+    try:
+        # 导入 API 客户端（延迟导入，避免在不需要时导入）
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(__file__))
+        from app_store_connect import AppStoreConnectAPI
+        
+        # 初始化 API 客户端
+        api = AppStoreConnectAPI(api_key_id, api_issuer_id, api_key_path)
+        
+        # 查找应用
+        bundle_id = config.get('appId')
+        app = api.find_app_by_bundle_id(bundle_id)
+        
+        if not app:
+            # 应用不存在，需要生成截图
+            return False, ""
+        
+        app_id = app['id']
+        
+        # 获取最新版本
+        version_info = api.get_latest_app_version(app_id)
+        
+        if not version_info:
+            # 没有版本，需要生成截图
+            return False, ""
+        
+        version_id = version_info["id"]
+        
+        # 检查是否已有截图
+        existing_screenshots = api.check_existing_screenshots(version_id)
+        
+        if existing_screenshots:
+            # 已有截图，跳过生成
+            reason = f"应用已有截图（{', '.join([f'{k}: {v}张' for k, v in existing_screenshots.items()])}）"
+            return True, reason
+        else:
+            # 没有截图，需要生成
+            return False, ""
+    
+    except Exception as e:
+        # 检查失败，继续生成截图
+        print(f"⚠️  检查现有截图失败: {e}")
+        print(f"将继续生成截图...")
+        return False, ""
+
+
 def main():
     """主函数"""
     if len(sys.argv) < 2:
@@ -299,6 +388,22 @@ def main():
     config_file = os.path.join(workspace_path, "assets", app_name, "app.cfg")
     print(f"📖 读取配置文件: {config_file}")
     config = read_config(config_file)
+    
+    # 检查是否应该跳过截图生成
+    should_skip, skip_reason = check_if_screenshots_should_skip(config, workspace_path, app_name)
+    
+    if should_skip:
+        print()
+        print("=" * 60)
+        print("⏭️  跳过截图生成")
+        print("=" * 60)
+        print(f"原因: {skip_reason}")
+        print()
+        print("提示:")
+        print("  • 如需重新生成截图，请在 App Store Connect 中删除现有截图")
+        print("  • 或在 app.cfg 中设置 skipScreenshotIfExists=false")
+        print("=" * 60)
+        sys.exit(0)
 
     # 获取配置 - 支持多个截图源
     snapshot_screens = []
