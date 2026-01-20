@@ -1,1 +1,1 @@
-appName=homework
+appName=activegroup
