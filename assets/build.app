@@ -1,1 +1,1 @@
-appName=huochairenbiaoqingbao
+appName=homework
