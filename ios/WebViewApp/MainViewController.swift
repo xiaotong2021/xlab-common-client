@@ -97,8 +97,8 @@ class MainViewController: UIViewController {
         let username = AuthManager.shared.username ?? ""
         
         // 使用 JSON 编码防止注入攻击
-        let tokenJSON = (try? JSONSerialization.data(withJSONObject: token).flatMap { String(data: $0, encoding: .utf8) }) ?? "\"\""
-        let usernameJSON = (try? JSONSerialization.data(withJSONObject: username).flatMap { String(data: $0, encoding: .utf8) }) ?? "\"\""
+        let tokenJSON = (try? JSONSerialization.data(withJSONObject: token)).flatMap { String(data: $0, encoding: .utf8) } ?? "\"\""
+        let usernameJSON = (try? JSONSerialization.data(withJSONObject: username)).flatMap { String(data: $0, encoding: .utf8) } ?? "\"\""
         
         let authScript = """
         (function() {
@@ -125,8 +125,8 @@ class MainViewController: UIViewController {
         let token = AuthManager.shared.token ?? ""
         let username = AuthManager.shared.username ?? ""
         
-        let tokenJSON = (try? JSONSerialization.data(withJSONObject: token).flatMap { String(data: $0, encoding: .utf8) }) ?? "\"\""
-        let usernameJSON = (try? JSONSerialization.data(withJSONObject: username).flatMap { String(data: $0, encoding: .utf8) }) ?? "\"\""
+        let tokenJSON = (try? JSONSerialization.data(withJSONObject: token)).flatMap { String(data: $0, encoding: .utf8) } ?? "\"\""
+        let usernameJSON = (try? JSONSerialization.data(withJSONObject: username)).flatMap { String(data: $0, encoding: .utf8) } ?? "\"\""
         
         let refreshScript = """
         window.NativeAuth = Object.freeze({
