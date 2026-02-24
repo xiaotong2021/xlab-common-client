@@ -8,6 +8,7 @@
 //
 
 import Foundation
+import UIKit
 
 // MARK: - iOS 16+ App Intents 实现
 
