@@ -9,6 +9,7 @@
 
 import Foundation
 import UIKit
+import os.log
 
 // MARK: - iOS 16+ App Intents 实现
 
@@ -33,26 +34,29 @@ struct AIChatIntent: AppIntent {
     }
 
     func perform() async throws -> some ReturnsValue<String> & ProvidesDialog {
-        let tag = "[AIChatIntent]"
-        print("\(tag) perform() 开始执行")
-        print("\(tag) isLoggedIn = \(AuthManager.shared.isLoggedIn)")
-        print("\(tag) token 长度 = \(AuthManager.shared.token?.count ?? 0)")
-        print("\(tag) username = \(AuthManager.shared.username ?? "(空)")")
-        print("\(tag) 问题 = \(question.prefix(50))")
+        os_log("perform() 开始执行", log: AppLogger.intent, type: .info)
+        os_log("isLoggedIn=%{public}@，username=%{public}@，token 长度=%d",
+               log: AppLogger.intent, type: .info,
+               String(AuthManager.shared.isLoggedIn),
+               AuthManager.shared.username ?? "(空)",
+               AuthManager.shared.token?.count ?? 0)
+        os_log("问题(前50字)=%{public}@", log: AppLogger.intent, type: .debug,
+               String(question.prefix(50)))
 
         guard AuthManager.shared.isLoggedIn else {
-            print("\(tag) ❌ 未登录，抛出 notLoggedIn 错误")
+            os_log("❌ 未登录，抛出 notLoggedIn 错误", log: AppLogger.intent, type: .error)
             throw AppIntentError.notLoggedIn
         }
 
-        print("\(tag) ✅ 登录状态正常，开始请求 AI Chat...")
+        os_log("✅ 登录状态正常，开始请求 AI Chat...", log: AppLogger.intent, type: .info)
 
         do {
             let answer = try await AIService.shared.chat(question: question)
-            print("\(tag) ✅ 获取到答案，长度 = \(answer.count)")
+            os_log("✅ 获取到答案，长度=%d", log: AppLogger.intent, type: .info, answer.count)
             return .result(value: answer, dialog: IntentDialog(stringLiteral: answer))
         } catch {
-            print("\(tag) ❌ 请求失败: \(error.localizedDescription)")
+            os_log("❌ 请求失败: %{public}@", log: AppLogger.intent, type: .error,
+                   error.localizedDescription)
             throw error
         }
     }
@@ -82,24 +86,25 @@ class AIChatShortcutHandler {
     private init() {}
 
     /// 处理来自 URL Scheme 的 AI Chat 请求
-    /// - Parameters:
-    ///   - question: 问题文本
-    ///   - completion: 回调，返回答案或错误
     func handleChatRequest(question: String, completion: @escaping (Result<String, Error>) -> Void) {
+        os_log("handleChatRequest() 调用，question=%{public}@",
+               log: AppLogger.intent, type: .info, String(question.prefix(50)))
         AIService.shared.chat(question: question, completion: completion)
     }
 
-    /// 将问题通过 Pasteboard 传递给快捷指令（适用于快捷指令回调场景）
+    /// 将问题通过 Pasteboard 传递给快捷指令
     func copyAnswerToPasteboard(question: String, completion: @escaping (Bool, String) -> Void) {
         AIService.shared.chat(question: question) { result in
             switch result {
             case .success(let answer):
                 UIPasteboard.general.string = answer
+                os_log("✅ 答案已复制到剪贴板，长度=%d", log: AppLogger.intent, type: .info, answer.count)
                 completion(true, answer)
             case .failure(let error):
+                os_log("❌ 复制失败: %{public}@", log: AppLogger.intent, type: .error,
+                       error.localizedDescription)
                 completion(false, error.localizedDescription)
             }
         }
     }
 }
-

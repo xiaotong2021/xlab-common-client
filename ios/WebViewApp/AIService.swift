@@ -6,12 +6,12 @@
 //
 
 import Foundation
+import os.log
 
 class AIService {
     static let shared = AIService()
 
     private let chatURL = "https://www.idlab.top/userapi/knowledge/chatNew"
-    private let tag = "[AIService]"
 
     private init() {}
 
@@ -20,24 +20,25 @@ class AIService {
     func chat(question: String, completion: @escaping (Result<String, Error>) -> Void) {
 
         // ── 1. 检查登录状态 ──────────────────────────────────────────
-        let token = AuthManager.shared.token ?? ""
+        let token      = AuthManager.shared.token ?? ""
         let isLoggedIn = AuthManager.shared.isLoggedIn
+        let username   = AuthManager.shared.username ?? "(空)"
 
-        print("\(tag) chat() 被调用")
-        print("\(tag) isLoggedIn = \(isLoggedIn)")
-        print("\(tag) token 长度 = \(token.count)，前8位 = \(token.prefix(8))...")
-        print("\(tag) 问题 = \(question.prefix(50))")
+        os_log("chat() 被调用", log: AppLogger.ai, type: .info)
+        os_log("isLoggedIn=%{public}@，username=%{public}@，token 长度=%d，token 前8位=%{public}@",
+               log: AppLogger.ai, type: .info,
+               String(isLoggedIn), username, token.count, String(token.prefix(8)))
+        os_log("问题(前50字)=%{public}@", log: AppLogger.ai, type: .debug, String(question.prefix(50)))
 
         guard isLoggedIn, !token.isEmpty else {
-            print("\(tag) ❌ 未登录，token 为空，终止请求")
-            let error = AuthError.notLoggedIn
-            DispatchQueue.main.async { completion(.failure(error)) }
+            os_log("❌ 未登录，token 为空，终止请求", log: AppLogger.ai, type: .error)
+            DispatchQueue.main.async { completion(.failure(AuthError.notLoggedIn)) }
             return
         }
 
         // ── 2. 构建请求 ──────────────────────────────────────────────
         guard let url = URL(string: chatURL) else {
-            print("\(tag) ❌ 无效 URL: \(chatURL)")
+            os_log("❌ 无效 URL: %{public}@", log: AppLogger.ai, type: .error, chatURL)
             DispatchQueue.main.async { completion(.failure(AIServiceError.invalidURL)) }
             return
         }
@@ -51,33 +52,30 @@ class AIService {
         let body: [String: String] = ["question": question]
         if let bodyData = try? JSONSerialization.data(withJSONObject: body) {
             request.httpBody = bodyData
-            print("\(tag) 请求 body = \(String(data: bodyData, encoding: .utf8) ?? "(无法解析)")")
-        } else {
-            print("\(tag) ⚠️ 请求 body 序列化失败")
         }
 
-        print("\(tag) → POST \(chatURL)")
-        print("\(tag) Authorization: Bearer \(token.prefix(8))...\(token.suffix(4))")
+        os_log("→ POST %{public}@", log: AppLogger.ai, type: .info, chatURL)
+        os_log("Authorization: Bearer %{public}@...%{public}@",
+               log: AppLogger.ai, type: .debug,
+               String(token.prefix(8)), String(token.suffix(4)))
 
         // ── 3. 发起网络请求 ──────────────────────────────────────────
-        URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
-            guard let self = self else { return }
+        URLSession.shared.dataTask(with: request) { data, response, error in
 
             // 网络层错误
             if let error = error {
-                print("\(self.tag) ❌ 网络错误: \(error.localizedDescription)")
+                os_log("❌ 网络错误: %{public}@", log: AppLogger.ai, type: .error, error.localizedDescription)
                 DispatchQueue.main.async { completion(.failure(error)) }
                 return
             }
 
-            // 解析 HTTP 响应
             let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
-            print("\(self.tag) ← HTTP \(statusCode)")
+            os_log("← HTTP %d", log: AppLogger.ai, type: .info, statusCode)
 
+            // 打印响应原文（前 500 字符）
             if let data = data, let rawBody = String(data: data, encoding: .utf8) {
-                // 只打印前 500 字符，避免日志过长
                 let preview = rawBody.count > 500 ? String(rawBody.prefix(500)) + "...(截断)" : rawBody
-                print("\(self.tag) 响应 body = \(preview)")
+                os_log("← 响应 body: %{public}@", log: AppLogger.ai, type: .debug, preview)
             }
 
             // 处理非 2xx 状态码
@@ -85,36 +83,37 @@ class AIService {
             case 200...299:
                 break // 正常，继续处理 body
             case 401:
-                print("\(self.tag) ❌ 401 Unauthorized，token 已失效，清除登录状态")
+                os_log("❌ 401 Unauthorized，token 已失效，清除登录状态", log: AppLogger.ai, type: .error)
                 DispatchQueue.main.async {
                     AuthManager.shared.logout()
                     completion(.failure(AIServiceError.unauthorized))
                 }
                 return
             case 403:
-                print("\(self.tag) ❌ 403 Forbidden，无权限访问")
+                os_log("❌ 403 Forbidden，无权限访问", log: AppLogger.ai, type: .error)
                 DispatchQueue.main.async { completion(.failure(AIServiceError.forbidden)) }
                 return
             default:
-                print("\(self.tag) ❌ 服务器错误，状态码: \(statusCode)")
+                os_log("❌ 服务器错误，状态码: %d", log: AppLogger.ai, type: .error, statusCode)
                 DispatchQueue.main.async { completion(.failure(AIServiceError.serverError(statusCode))) }
                 return
             }
 
             // 解析响应 body
             guard let data = data else {
-                print("\(self.tag) ❌ 响应 data 为空")
+                os_log("❌ 响应 data 为空", log: AppLogger.ai, type: .error)
                 DispatchQueue.main.async { completion(.failure(AIServiceError.noData)) }
                 return
             }
 
-            // 尝试解析为 JSON，提取 answer 字段
+            // 尝试解析 JSON
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                print("\(self.tag) 响应 JSON keys = \(json.keys.joined(separator: ", "))")
+                os_log("响应 JSON keys: %{public}@", log: AppLogger.ai, type: .debug,
+                       json.keys.joined(separator: ", "))
 
-                // 检查是否有错误字段
+                // 检查服务器是否返回了 error 字段
                 if let errMsg = json["error"] as? String {
-                    print("\(self.tag) ❌ 服务器返回 error 字段: \(errMsg)")
+                    os_log("❌ 服务器返回 error 字段: %{public}@", log: AppLogger.ai, type: .error, errMsg)
                     DispatchQueue.main.async {
                         completion(.failure(AIServiceError.serverMessage(errMsg)))
                     }
@@ -128,20 +127,20 @@ class AIService {
                     ?? json["data"] as? String
 
                 if let answer = answer {
-                    print("\(self.tag) ✅ 解析到答案，长度 = \(answer.count)")
+                    os_log("✅ 解析到答案，长度=%d", log: AppLogger.ai, type: .info, answer.count)
                     DispatchQueue.main.async { completion(.success(answer)) }
                     return
                 }
 
-                print("\(self.tag) ⚠️ JSON 中未找到已知 answer 字段，尝试返回原始文本")
+                os_log("⚠️ JSON 中未找到已知 answer 字段，回退到原始文本", log: AppLogger.ai, type: .default)
             }
 
             // 直接返回原始文本
             if let text = String(data: data, encoding: .utf8), !text.isEmpty {
-                print("\(self.tag) ✅ 返回原始文本，长度 = \(text.count)")
+                os_log("✅ 返回原始文本，长度=%d", log: AppLogger.ai, type: .info, text.count)
                 DispatchQueue.main.async { completion(.success(text)) }
             } else {
-                print("\(self.tag) ❌ 响应无法解析为文本")
+                os_log("❌ 响应无法解析为文本", log: AppLogger.ai, type: .error)
                 DispatchQueue.main.async { completion(.failure(AIServiceError.invalidResponse)) }
             }
         }.resume()
@@ -151,9 +150,8 @@ class AIService {
 
     @available(iOS 15.0, *)
     func chat(question: String) async throws -> String {
-        print("\(tag) async chat() 调用，切换到 continuation")
+        os_log("async chat() 调用，切换到 continuation", log: AppLogger.ai, type: .debug)
         return try await withCheckedThrowingContinuation { continuation in
-            // 注意：不在 @MainActor 上下文中调用 callback，避免与 DispatchQueue.main.async 死锁
             chat(question: question) { result in
                 switch result {
                 case .success(let answer):
@@ -179,20 +177,13 @@ enum AIServiceError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidURL:
-            return "无效的请求地址"
-        case .noData:
-            return "服务器无响应"
-        case .invalidResponse:
-            return "响应格式错误"
-        case .unauthorized:
-            return "登录已过期，请重新登录"
-        case .forbidden:
-            return "无权限访问，请联系管理员"
-        case .serverError(let code):
-            return "服务器错误（HTTP \(code)），请稍后重试"
-        case .serverMessage(let msg):
-            return msg
+        case .invalidURL:        return "无效的请求地址"
+        case .noData:            return "服务器无响应"
+        case .invalidResponse:   return "响应格式错误"
+        case .unauthorized:      return "登录已过期，请重新登录"
+        case .forbidden:         return "无权限访问，请联系管理员"
+        case .serverError(let c): return "服务器错误（HTTP \(c)），请稍后重试"
+        case .serverMessage(let m): return m
         }
     }
 }
