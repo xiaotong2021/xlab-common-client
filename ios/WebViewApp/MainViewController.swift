@@ -41,6 +41,10 @@ class MainViewController: UIViewController {
             }
         }
         
+        // 注入登录信息到 JavaScript 全局对象
+        // WebView 中 JS 可通过 window.NativeAuth.token / window.NativeAuth.username 获取
+        injectAuthScript(into: configuration)
+        
         // 创建WebView
         webView = WKWebView(frame: view.bounds, configuration: configuration)
         webView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -81,6 +85,57 @@ class MainViewController: UIViewController {
         }
         
         view.addSubview(webView)
+    }
+    
+    /// 将 token 和用户名注入到 WebView JS 环境
+    /// JS 中使用方式：
+    ///   window.NativeAuth.token    → 获取 token
+    ///   window.NativeAuth.username → 获取用户名
+    ///   示例：fetch('/api/data', { headers: { Authorization: 'Bearer ' + window.NativeAuth.token } })
+    private func injectAuthScript(into configuration: WKWebViewConfiguration) {
+        let token = AuthManager.shared.token ?? ""
+        let username = AuthManager.shared.username ?? ""
+        
+        // 使用 JSON 编码防止注入攻击
+        let tokenJSON = (try? JSONSerialization.data(withJSONObject: token).flatMap { String(data: $0, encoding: .utf8) }) ?? "\"\""
+        let usernameJSON = (try? JSONSerialization.data(withJSONObject: username).flatMap { String(data: $0, encoding: .utf8) }) ?? "\"\""
+        
+        let authScript = """
+        (function() {
+            'use strict';
+            // 定义 NativeAuth 全局对象，供 WebView 中的 JS 访问登录信息
+            window.NativeAuth = Object.freeze({
+                token: \(tokenJSON),
+                username: \(usernameJSON),
+                isLoggedIn: \(token.isEmpty ? "false" : "true")
+            });
+        })();
+        """
+        
+        let userScript = WKUserScript(
+            source: authScript,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: false
+        )
+        configuration.userContentController.addUserScript(userScript)
+    }
+    
+    /// 当 token 更新时，动态更新 WebView 中的 JS 变量
+    func refreshAuthInWebView() {
+        let token = AuthManager.shared.token ?? ""
+        let username = AuthManager.shared.username ?? ""
+        
+        let tokenJSON = (try? JSONSerialization.data(withJSONObject: token).flatMap { String(data: $0, encoding: .utf8) }) ?? "\"\""
+        let usernameJSON = (try? JSONSerialization.data(withJSONObject: username).flatMap { String(data: $0, encoding: .utf8) }) ?? "\"\""
+        
+        let refreshScript = """
+        window.NativeAuth = Object.freeze({
+            token: \(tokenJSON),
+            username: \(usernameJSON),
+            isLoggedIn: \(token.isEmpty ? "false" : "true")
+        });
+        """
+        webView?.evaluateJavaScript(refreshScript, completionHandler: nil)
     }
     
     private func setupProgressView() {

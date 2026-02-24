@@ -1,1 +1,1 @@
-appName=SNAKE
+appName=homework

@@ -110,12 +110,18 @@ class LoadingViewController: UIViewController {
     }
     
     private func navigateToMainView() {
-        let mainVC = MainViewController()
+        // 检查登录状态，决定跳转目标页面
+        let targetVC: UIViewController
+        if AuthManager.shared.isLoggedIn {
+            targetVC = MainViewController()
+        } else {
+            targetVC = LoginViewController()
+        }
         
         // 使用场景的窗口进行切换
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
            let window = windowScene.windows.first {
-            window.rootViewController = mainVC
+            window.rootViewController = targetVC
             
             // 添加过渡动画
             UIView.transition(with: window, duration: 0.3, options: .transitionCrossDissolve, animations: nil)
