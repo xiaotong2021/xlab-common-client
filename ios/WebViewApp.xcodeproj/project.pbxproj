@@ -36,6 +36,7 @@
 		8D1107540486CEB800E470B4 /* LoginViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginViewController.swift; sourceTree = "<group>"; };
 		8D1107560486CEB800E470B6 /* AIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIService.swift; sourceTree = "<group>"; };
 		8D1107580486CEB800E470B8 /* AIChatIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatIntent.swift; sourceTree = "<group>"; };
+		8D1107590486CEB800E470B9 /* WebViewApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WebViewApp.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -68,8 +69,9 @@
 				8D1107520486CEB800E470B2 /* AuthManager.swift */,
 				8D1107540486CEB800E470B4 /* LoginViewController.swift */,
 				8D1107560486CEB800E470B6 /* AIService.swift */,
-				8D1107580486CEB800E470B8 /* AIChatIntent.swift */,
-				8D11073C0486CEB800E4709B /* Assets.xcassets */,
+			8D1107580486CEB800E470B8 /* AIChatIntent.swift */,
+			8D1107590486CEB800E470B9 /* WebViewApp.entitlements */,
+			8D11073C0486CEB800E4709B /* Assets.xcassets */,
 				8D11073E0486CEB800E4709D /* LaunchScreen.storyboard */,
 				8D11074F0486CEB800E470AF /* webapp */,
 				8D11073F0486CEB800E4709E /* Info.plist */,
@@ -295,6 +297,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = WebViewApp/WebViewApp.entitlements;
 				CODE_SIGN_STYLE = __CODE_SIGN_STYLE__;
 				CURRENT_PROJECT_VERSION = __BUILD_NUMBER__;
 				DEVELOPMENT_TEAM = __TEAM_ID__;
@@ -323,6 +326,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = WebViewApp/WebViewApp.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = __BUILD_NUMBER__;
 				DEVELOPMENT_TEAM = __TEAM_ID__;
