@@ -32,14 +32,29 @@ struct AIChatIntent: AppIntent {
         Summary("向AI提问：\(\.$question)")
     }
 
-    @MainActor
     func perform() async throws -> some ReturnsValue<String> & ProvidesDialog {
+        let tag = "[AIChatIntent]"
+        print("\(tag) perform() 开始执行")
+        print("\(tag) isLoggedIn = \(AuthManager.shared.isLoggedIn)")
+        print("\(tag) token 长度 = \(AuthManager.shared.token?.count ?? 0)")
+        print("\(tag) username = \(AuthManager.shared.username ?? "(空)")")
+        print("\(tag) 问题 = \(question.prefix(50))")
+
         guard AuthManager.shared.isLoggedIn else {
+            print("\(tag) ❌ 未登录，抛出 notLoggedIn 错误")
             throw AppIntentError.notLoggedIn
         }
 
-        let answer = try await AIService.shared.chat(question: question)
-        return .result(value: answer, dialog: IntentDialog(stringLiteral: answer))
+        print("\(tag) ✅ 登录状态正常，开始请求 AI Chat...")
+
+        do {
+            let answer = try await AIService.shared.chat(question: question)
+            print("\(tag) ✅ 获取到答案，长度 = \(answer.count)")
+            return .result(value: answer, dialog: IntentDialog(stringLiteral: answer))
+        } catch {
+            print("\(tag) ❌ 请求失败: \(error.localizedDescription)")
+            throw error
+        }
     }
 }
 
