@@ -87,6 +87,22 @@ class MainViewController: UIViewController {
         view.addSubview(webView)
     }
     
+    /// 将字符串安全地编码为 JSON 字符串字面量（含双引号），防止 XSS 注入
+    /// 使用 JSONEncoder 而非 JSONSerialization，因为后者要求顶层对象为 Array/Dictionary
+    private func jsonString(_ value: String) -> String {
+        if let data = try? JSONEncoder().encode(value),
+           let json = String(data: data, encoding: .utf8) {
+            return json
+        }
+        // 降级：手动转义
+        let escaped = value
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\r", with: "\\r")
+        return "\"\(escaped)\""
+    }
+
     /// 将 token 和用户名注入到 WebView JS 环境
     /// JS 中使用方式：
     ///   window.NativeAuth.token    → 获取 token
@@ -95,11 +111,10 @@ class MainViewController: UIViewController {
     private func injectAuthScript(into configuration: WKWebViewConfiguration) {
         let token = AuthManager.shared.token ?? ""
         let username = AuthManager.shared.username ?? ""
-        
-        // 使用 JSON 编码防止注入攻击
-        let tokenJSON = (try? JSONSerialization.data(withJSONObject: token)).flatMap { String(data: $0, encoding: .utf8) } ?? "\"\""
-        let usernameJSON = (try? JSONSerialization.data(withJSONObject: username)).flatMap { String(data: $0, encoding: .utf8) } ?? "\"\""
-        
+
+        let tokenJSON = jsonString(token)
+        let usernameJSON = jsonString(username)
+
         let authScript = """
         (function() {
             'use strict';
@@ -111,7 +126,7 @@ class MainViewController: UIViewController {
             });
         })();
         """
-        
+
         let userScript = WKUserScript(
             source: authScript,
             injectionTime: .atDocumentStart,
@@ -119,15 +134,15 @@ class MainViewController: UIViewController {
         )
         configuration.userContentController.addUserScript(userScript)
     }
-    
+
     /// 当 token 更新时，动态更新 WebView 中的 JS 变量
     func refreshAuthInWebView() {
         let token = AuthManager.shared.token ?? ""
         let username = AuthManager.shared.username ?? ""
-        
-        let tokenJSON = (try? JSONSerialization.data(withJSONObject: token)).flatMap { String(data: $0, encoding: .utf8) } ?? "\"\""
-        let usernameJSON = (try? JSONSerialization.data(withJSONObject: username)).flatMap { String(data: $0, encoding: .utf8) } ?? "\"\""
-        
+
+        let tokenJSON = jsonString(token)
+        let usernameJSON = jsonString(username)
+
         let refreshScript = """
         window.NativeAuth = Object.freeze({
             token: \(tokenJSON),
