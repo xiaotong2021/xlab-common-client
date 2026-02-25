@@ -8,6 +8,31 @@
 import Foundation
 import os.log
 
+// MARK: - 响应数据模型
+
+/// AI Chat 接口返回的结构化结果
+struct ChatResponse {
+    /// 回答正文
+    let text: String
+    /// 参考文档列表（可为空）
+    let refers: [String]
+
+    /// 是否有参考文档
+    var hasRefers: Bool { !refers.isEmpty }
+
+    /// 供快捷指令"值"输出：仅 text，方便后续 Shortcut Action 直接使用
+    var textOnly: String { text }
+
+    /// 供快捷指令"对话框"或展示使用：包含回答 + 参考文档
+    var formatted: String {
+        guard hasRefers else { return text }
+        let refLines = refers.map { "• \($0)" }.joined(separator: "\n")
+        return "\(text)\n\n📄 参考文档：\n\(refLines)"
+    }
+}
+
+// MARK: - AIService
+
 class AIService {
     static let shared = AIService()
 
@@ -15,16 +40,15 @@ class AIService {
 
     private init() {}
 
-    // MARK: - Callback 版本
+    // MARK: - Callback 版本（返回 ChatResponse）
 
-    func chat(question: String, completion: @escaping (Result<String, Error>) -> Void) {
+    func chat(question: String, completion: @escaping (Result<ChatResponse, Error>) -> Void) {
 
-        // ── 1. 读取登录状态（使用 App Group UserDefaults）──────────────
+        // ── 1. 读取登录状态 ──────────────────────────────────────────
         let token      = AuthManager.shared.token ?? ""
         let isLoggedIn = AuthManager.shared.isLoggedIn
         let username   = AuthManager.shared.username ?? "(空)"
 
-        // 使用 .default 级别，Console.app 默认可见（不需要勾选 Include Info Messages）
         os_log("[AIService] ===== chat() 被调用 =====", log: AppLogger.ai, type: .default)
         os_log("[AIService] isLoggedIn = %{public}@", log: AppLogger.ai, type: .default, String(isLoggedIn))
         os_log("[AIService] username   = %{public}@", log: AppLogger.ai, type: .default, username)
@@ -50,7 +74,6 @@ class AIService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("\(username)", forHTTPHeaderField: "openid")
         request.timeoutInterval = 120
 
         let body: [String: String] = ["question": question]
@@ -58,12 +81,8 @@ class AIService {
         request.httpBody = bodyData
         let bodyStr = String(data: bodyData, encoding: .utf8) ?? "(编码失败)"
 
-        // 打印完整请求信息
         os_log("[AIService] ─── HTTP 请求 ───────────────────────────────", log: AppLogger.ai, type: .default)
         os_log("[AIService] URL    : %{public}@", log: AppLogger.ai, type: .default, chatURL)
-        os_log("[AIService] Method : POST", log: AppLogger.ai, type: .default)
-        os_log("[AIService] Header : Content-Type: application/json", log: AppLogger.ai, type: .default)
-        os_log("[AIService] Header : Accept: application/json", log: AppLogger.ai, type: .default)
         os_log("[AIService] Header : Authorization: Bearer %{public}@", log: AppLogger.ai, type: .default, token)
         os_log("[AIService] Body   : %{public}@", log: AppLogger.ai, type: .default, bodyStr)
         os_log("[AIService] ─────────────────────────────────────────────", log: AppLogger.ai, type: .default)
@@ -71,7 +90,6 @@ class AIService {
         // ── 3. 发起网络请求 ──────────────────────────────────────────
         URLSession.shared.dataTask(with: request) { data, response, error in
 
-            // 网络层错误
             if let error = error {
                 os_log("[AIService] ❌ 网络错误: %{public}@", log: AppLogger.ai, type: .error, error.localizedDescription)
                 DispatchQueue.main.async { completion(.failure(error)) }
@@ -80,14 +98,9 @@ class AIService {
 
             let httpResp   = response as? HTTPURLResponse
             let statusCode = httpResp?.statusCode ?? -1
-            let headers    = httpResp?.allHeaderFields as? [String: String] ?? [:]
 
             os_log("[AIService] ─── HTTP 响应 ───────────────────────────────", log: AppLogger.ai, type: .default)
             os_log("[AIService] Status : %d", log: AppLogger.ai, type: .default, statusCode)
-            for (k, v) in headers {
-                os_log("[AIService] Header : %{public}@ = %{public}@", log: AppLogger.ai, type: .default, k, v)
-            }
-
             if let data = data, let rawBody = String(data: data, encoding: .utf8) {
                 os_log("[AIService] Body   : %{public}@", log: AppLogger.ai, type: .default, rawBody)
             }
@@ -114,40 +127,62 @@ class AIService {
                 return
             }
 
-            // 解析响应 body
             guard let data = data else {
                 os_log("[AIService] ❌ 响应 data 为空", log: AppLogger.ai, type: .error)
                 DispatchQueue.main.async { completion(.failure(AIServiceError.noData)) }
                 return
             }
 
+            // ── 4. 解析响应 ──────────────────────────────────────────
             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 os_log("[AIService] 响应 JSON keys: %{public}@", log: AppLogger.ai, type: .default,
                        json.keys.joined(separator: ", "))
 
+                // 检查服务器错误字段
                 if let errMsg = json["error"] as? String {
                     os_log("[AIService] ❌ 服务器 error 字段: %{public}@", log: AppLogger.ai, type: .error, errMsg)
                     DispatchQueue.main.async { completion(.failure(AIServiceError.serverMessage(errMsg))) }
                     return
                 }
 
-                let answer = json["answer"] as? String
+                // 优先解析标准格式：{"text": "...", "refers": [...]}
+                if let text = json["text"] as? String {
+                    let refers = json["refers"] as? [String] ?? []
+                    os_log("[AIService] ✅ 解析到 text，长度=%d，refers 数量=%d",
+                           log: AppLogger.ai, type: .default, text.count, refers.count)
+                    if !refers.isEmpty {
+                        os_log("[AIService] refers: %{public}@", log: AppLogger.ai, type: .default,
+                               refers.joined(separator: ", "))
+                    }
+                    let chatResp = ChatResponse(text: text, refers: refers)
+                    DispatchQueue.main.async { completion(.success(chatResp)) }
+                    return
+                }
+
+                // 兼容其他字段名
+                let fallbackText = json["answer"] as? String
                     ?? json["content"] as? String
                     ?? json["message"] as? String
                     ?? json["result"] as? String
                     ?? json["data"] as? String
 
-                if let answer = answer {
-                    os_log("[AIService] ✅ 解析到答案，长度=%d", log: AppLogger.ai, type: .default, answer.count)
-                    DispatchQueue.main.async { completion(.success(answer)) }
+                if let fallbackText = fallbackText {
+                    os_log("[AIService] ✅ 使用兼容字段解析答案，长度=%d", log: AppLogger.ai, type: .default, fallbackText.count)
+                    DispatchQueue.main.async {
+                        completion(.success(ChatResponse(text: fallbackText, refers: [])))
+                    }
                     return
                 }
-                os_log("[AIService] ⚠️ JSON 中未找到已知 answer 字段，回退到原始文本", log: AppLogger.ai, type: .default)
+
+                os_log("[AIService] ⚠️ JSON 中未找到已知字段，回退到原始文本", log: AppLogger.ai, type: .default)
             }
 
-            if let text = String(data: data, encoding: .utf8), !text.isEmpty {
-                os_log("[AIService] ✅ 返回原始文本，长度=%d", log: AppLogger.ai, type: .default, text.count)
-                DispatchQueue.main.async { completion(.success(text)) }
+            // 最后回退：返回原始文本
+            if let rawText = String(data: data, encoding: .utf8), !rawText.isEmpty {
+                os_log("[AIService] ✅ 返回原始文本，长度=%d", log: AppLogger.ai, type: .default, rawText.count)
+                DispatchQueue.main.async {
+                    completion(.success(ChatResponse(text: rawText, refers: [])))
+                }
             } else {
                 os_log("[AIService] ❌ 响应无法解析为文本", log: AppLogger.ai, type: .error)
                 DispatchQueue.main.async { completion(.failure(AIServiceError.invalidResponse)) }
@@ -158,13 +193,13 @@ class AIService {
     // MARK: - Async/Await 版本（iOS 15+）
 
     @available(iOS 15.0, *)
-    func chat(question: String) async throws -> String {
+    func chat(question: String) async throws -> ChatResponse {
         os_log("[AIService] async chat() 调用", log: AppLogger.ai, type: .default)
         return try await withCheckedThrowingContinuation { continuation in
             chat(question: question) { result in
                 switch result {
-                case .success(let answer): continuation.resume(returning: answer)
-                case .failure(let error):  continuation.resume(throwing: error)
+                case .success(let resp):  continuation.resume(returning: resp)
+                case .failure(let error): continuation.resume(throwing: error)
                 }
             }
         }

@@ -25,7 +25,6 @@ struct AIChatIntent: AppIntent {
         categoryName: "知识库"
     )
 
-    /// 用户输入的问题
     @Parameter(title: "问题", description: "请输入您想询问AI的问题")
     var question: String
 
@@ -33,14 +32,15 @@ struct AIChatIntent: AppIntent {
         Summary("向AI提问：\(\.$question)")
     }
 
+    /// 快捷指令返回值：
+    ///   - value  → 仅回答正文（方便后续 Shortcut Action 直接使用文本）
+    ///   - dialog → 完整内容（回答 + 参考文档），显示在快捷指令结果界面
     func perform() async throws -> some ReturnsValue<String> & ProvidesDialog {
         os_log("[AIChatIntent] ===== perform() 开始执行 =====", log: AppLogger.intent, type: .default)
         os_log("[AIChatIntent] isLoggedIn = %{public}@", log: AppLogger.intent, type: .default,
                String(AuthManager.shared.isLoggedIn))
         os_log("[AIChatIntent] username   = %{public}@", log: AppLogger.intent, type: .default,
                AuthManager.shared.username ?? "(空)")
-        os_log("[AIChatIntent] token 长度 = %d", log: AppLogger.intent, type: .default,
-               AuthManager.shared.token?.count ?? 0)
         os_log("[AIChatIntent] token 完整 = %{public}@", log: AppLogger.intent, type: .default,
                AuthManager.shared.token ?? "(空)")
         os_log("[AIChatIntent] 问题       = %{public}@", log: AppLogger.intent, type: .default, question)
@@ -53,9 +53,17 @@ struct AIChatIntent: AppIntent {
         os_log("[AIChatIntent] ✅ 登录状态正常，开始请求 AI Chat...", log: AppLogger.intent, type: .default)
 
         do {
-            let answer = try await AIService.shared.chat(question: question)
-            os_log("[AIChatIntent] ✅ 获取到答案，长度=%d", log: AppLogger.intent, type: .default, answer.count)
-            return .result(value: answer, dialog: IntentDialog(stringLiteral: answer))
+            let resp = try await AIService.shared.chat(question: question)
+
+            os_log("[AIChatIntent] ✅ 获取到答案，text 长度=%d，refers 数量=%d",
+                   log: AppLogger.intent, type: .default, resp.text.count, resp.refers.count)
+
+            // value  = 仅正文，方便在快捷指令中继续处理
+            // dialog = 完整格式（正文 + 参考文档），显示在快捷指令结果卡片
+            return .result(
+                value: resp.textOnly,
+                dialog: IntentDialog(stringLiteral: resp.formatted)
+            )
         } catch {
             os_log("[AIChatIntent] ❌ 请求失败: %{public}@", log: AppLogger.intent, type: .error,
                    error.localizedDescription)
@@ -84,19 +92,29 @@ class AIChatShortcutHandler {
     static let shared = AIChatShortcutHandler()
     private init() {}
 
+    /// 处理来自 URL Scheme 的 AI Chat 请求，回调返回格式化后的完整字符串
     func handleChatRequest(question: String, completion: @escaping (Result<String, Error>) -> Void) {
         os_log("[AIChatIntent] handleChatRequest() question=%{public}@",
                log: AppLogger.intent, type: .default, String(question.prefix(50)))
-        AIService.shared.chat(question: question, completion: completion)
+        AIService.shared.chat(question: question) { result in
+            switch result {
+            case .success(let resp):
+                completion(.success(resp.formatted))
+            case .failure(let error):
+                completion(.failure(error))
+            }
+        }
     }
 
+    /// 将完整格式化结果（正文 + 参考文档）复制到剪贴板
     func copyAnswerToPasteboard(question: String, completion: @escaping (Bool, String) -> Void) {
         AIService.shared.chat(question: question) { result in
             switch result {
-            case .success(let answer):
-                UIPasteboard.general.string = answer
-                os_log("[AIChatIntent] ✅ 答案已复制到剪贴板，长度=%d", log: AppLogger.intent, type: .default, answer.count)
-                completion(true, answer)
+            case .success(let resp):
+                let output = resp.formatted
+                UIPasteboard.general.string = output
+                os_log("[AIChatIntent] ✅ 答案已复制到剪贴板，长度=%d", log: AppLogger.intent, type: .default, output.count)
+                completion(true, output)
             case .failure(let error):
                 os_log("[AIChatIntent] ❌ 失败: %{public}@", log: AppLogger.intent, type: .error,
                        error.localizedDescription)
