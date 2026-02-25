@@ -12,7 +12,7 @@ import os.log
 
 /// AI Chat 接口返回的结构化结果
 struct ChatResponse {
-    /// 回答正文
+    /// 回答正文（可能是纯文本，也可能是服务端原始 JSON 字符串）
     let text: String
     /// 参考文档列表（可为空）
     let refers: [String]
@@ -20,29 +20,52 @@ struct ChatResponse {
     /// 是否有参考文档
     var hasRefers: Bool { !refers.isEmpty }
 
+    // MARK: - 内部：兜底 JSON 解析
+    //
+    // 无论上游（AIService）是否成功解析 JSON，此处再做一次保障：
+    //   • 如果 text 本身是一段 JSON 字符串（{"text":..., "refers":[...]}），
+    //     则在此提取出真正的 text 和 refers，确保对外永远输出可读纯文本。
+    //   • 如果 text 已是纯文本，直接原样返回。
+    private var resolved: (body: String, refs: [String]) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // 只对看起来像 JSON 对象的字符串尝试二次解析
+        if trimmed.hasPrefix("{"),
+           let data = trimmed.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let extracted = json["text"] as? String {
+
+            let extractedRefers = (json["refers"] as? [String]) ?? refers
+            return (extracted, extractedRefers)
+        }
+
+        return (text, refers)
+    }
+
     /// 供快捷指令 value 输出：仅正文，方便后续 Shortcut Action 直接处理
-    var textOnly: String { text }
+    var textOnly: String {
+        resolved.body
+            .replacingOccurrences(of: "\\n", with: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     /// 适合阅读、朗读、短信/文本分享的纯文本格式：
     ///
     ///   [正文内容，段落间空行保留]
     ///
     ///   引用文档：文档A、文档B
-    ///
-    /// 特点：
-    ///   • 无 JSON / Markdown 符号，直接可读
-    ///   • 参考文档用顿号拼成一行，短信长度友好
-    ///   • 无 emoji，兼容纯文本环境（短信、备忘录等）
     var formatted: String {
+        let (rawBody, refs) = (resolved.body, resolved.refs)
+
         // 把服务端返回的 \n 字面量（如果有）统一为真实换行
-        let body = text
+        let body = rawBody
             .replacingOccurrences(of: "\\n", with: "\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard hasRefers else { return body }
+        guard !refs.isEmpty else { return body }
 
         // 多个参考文档用顿号连接，简洁易读，也便于朗读
-        let refLine = "引用文档：" + refers.joined(separator: "、")
+        let refLine = "引用文档：" + refs.joined(separator: "、")
         return "\(body)\n\n\(refLine)"
     }
 }
