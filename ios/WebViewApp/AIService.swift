@@ -20,14 +20,30 @@ struct ChatResponse {
     /// 是否有参考文档
     var hasRefers: Bool { !refers.isEmpty }
 
-    /// 供快捷指令"值"输出：仅 text，方便后续 Shortcut Action 直接使用
+    /// 供快捷指令 value 输出：仅正文，方便后续 Shortcut Action 直接处理
     var textOnly: String { text }
 
-    /// 供快捷指令"对话框"或展示使用：包含回答 + 参考文档
+    /// 适合阅读、朗读、短信/文本分享的纯文本格式：
+    ///
+    ///   [正文内容，段落间空行保留]
+    ///
+    ///   引用文档：文档A、文档B
+    ///
+    /// 特点：
+    ///   • 无 JSON / Markdown 符号，直接可读
+    ///   • 参考文档用顿号拼成一行，短信长度友好
+    ///   • 无 emoji，兼容纯文本环境（短信、备忘录等）
     var formatted: String {
-        guard hasRefers else { return text }
-        let refLines = refers.map { "• \($0)" }.joined(separator: "\n")
-        return "\(text)\n\n📄 参考文档：\n\(refLines)"
+        // 把服务端返回的 \n 字面量（如果有）统一为真实换行
+        let body = text
+            .replacingOccurrences(of: "\\n", with: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard hasRefers else { return body }
+
+        // 多个参考文档用顿号连接，简洁易读，也便于朗读
+        let refLine = "引用文档：" + refers.joined(separator: "、")
+        return "\(body)\n\n\(refLine)"
     }
 }
 
