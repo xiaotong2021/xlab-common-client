@@ -45,6 +45,13 @@ struct AIChatIntent: AppIntent {
                AuthManager.shared.token ?? "(空)")
         os_log("[AIChatIntent] 问题       = %{public}@", log: AppLogger.intent, type: .default, question)
 
+        // ── 1. 校验问题不能为空 ─────────────────────────────────────
+        guard !question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            os_log("[AIChatIntent] ❌ 问题为空，拒绝请求", log: AppLogger.intent, type: .error)
+            throw AppIntentError.emptyQuestion
+        }
+
+        // ── 2. 校验登录状态 ─────────────────────────────────────────
         guard AuthManager.shared.isLoggedIn else {
             os_log("[AIChatIntent] ❌ 未登录，抛出 notLoggedIn 错误", log: AppLogger.intent, type: .error)
             throw AppIntentError.notLoggedIn
@@ -75,11 +82,14 @@ struct AIChatIntent: AppIntent {
 @available(iOS 16.0, *)
 enum AppIntentError: LocalizedError {
     case notLoggedIn
+    case emptyQuestion
 
     var errorDescription: String? {
         switch self {
         case .notLoggedIn:
             return "请先打开 App 登录后，再使用快捷指令"
+        case .emptyQuestion:
+            return "问题不能为空，请输入您想询问的内容后再试"
         }
     }
 }
@@ -96,6 +106,13 @@ class AIChatShortcutHandler {
     func handleChatRequest(question: String, completion: @escaping (Result<String, Error>) -> Void) {
         os_log("[AIChatIntent] handleChatRequest() question=%{public}@",
                log: AppLogger.intent, type: .default, String(question.prefix(50)))
+
+        guard !question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            os_log("[AIChatIntent] ❌ 问题为空，拒绝请求", log: AppLogger.intent, type: .error)
+            completion(.failure(ShortcutHandlerError.emptyQuestion))
+            return
+        }
+
         AIService.shared.chat(question: question) { result in
             switch result {
             case .success(let resp):
@@ -108,6 +125,12 @@ class AIChatShortcutHandler {
 
     /// 将完整格式化结果（正文 + 参考文档）复制到剪贴板
     func copyAnswerToPasteboard(question: String, completion: @escaping (Bool, String) -> Void) {
+        guard !question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            os_log("[AIChatIntent] ❌ 问题为空，拒绝复制", log: AppLogger.intent, type: .error)
+            completion(false, "问题不能为空，请输入您想询问的内容后再试")
+            return
+        }
+
         AIService.shared.chat(question: question) { result in
             switch result {
             case .success(let resp):
@@ -120,6 +143,19 @@ class AIChatShortcutHandler {
                        error.localizedDescription)
                 completion(false, error.localizedDescription)
             }
+        }
+    }
+}
+
+// MARK: - ShortcutHandler 错误类型（iOS 15 兼容层）
+
+enum ShortcutHandlerError: LocalizedError {
+    case emptyQuestion
+
+    var errorDescription: String? {
+        switch self {
+        case .emptyQuestion:
+            return "问题不能为空，请输入您想询问的内容后再试"
         }
     }
 }
