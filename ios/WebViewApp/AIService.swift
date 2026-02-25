@@ -74,6 +74,7 @@ class AIService {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("\(username)", forHTTPHeaderField: "openid")
         request.timeoutInterval = 120
 
         let body: [String: String] = ["question": question]
