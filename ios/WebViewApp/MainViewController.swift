@@ -13,13 +13,155 @@ class MainViewController: UIViewController {
     private var webView: WKWebView!
     private var progressView: UIProgressView!
     private var observation: NSKeyValueObservation?
-    
+
+    // MARK: - 右上角用户头像按钮
+    private lazy var avatarButton: UIButton = {
+        let btn = UIButton(type: .custom)
+
+        // 取用户名首字母（大写），未登录则显示 "?"
+        let initial = AuthManager.shared.username?
+            .trimmingCharacters(in: .whitespaces)
+            .first
+            .map { String($0).uppercased() } ?? "?"
+        btn.setTitle(initial, for: .normal)
+        btn.titleLabel?.font = UIFont.boldSystemFont(ofSize: 18)
+        btn.setTitleColor(.white, for: .normal)
+
+        // 圆形背景：与截图中紫色头像保持一致
+        btn.backgroundColor = UIColor(red: 0.40, green: 0.33, blue: 0.78, alpha: 1.0)
+        btn.layer.cornerRadius = 22
+        btn.layer.masksToBounds = true
+
+        // 点击微弱压缩动效
+        btn.addTarget(self, action: #selector(avatarButtonTouchDown), for: .touchDown)
+        btn.addTarget(self, action: #selector(avatarButtonTouchUp), for: [.touchUpInside, .touchUpOutside, .touchCancel])
+        btn.addTarget(self, action: #selector(avatarButtonTapped), for: .touchUpInside)
+
+        btn.translatesAutoresizingMaskIntoConstraints = false
+        return btn
+    }()
+
     override func viewDidLoad() {
         super.viewDidLoad()
         
         setupWebView()
         setupProgressView()
+        setupAvatarButton()
         loadURL()
+    }
+
+    // MARK: - 头像按钮安装
+    private func setupAvatarButton() {
+        view.addSubview(avatarButton)
+        view.bringSubviewToFront(avatarButton)
+
+        NSLayoutConstraint.activate([
+            avatarButton.widthAnchor.constraint(equalToConstant: 44),
+            avatarButton.heightAnchor.constraint(equalToConstant: 44),
+            avatarButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -12),
+            avatarButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 10)
+        ])
+    }
+
+    // MARK: - 头像按钮交互
+    @objc private func avatarButtonTouchDown() {
+        UIView.animate(withDuration: 0.1) {
+            self.avatarButton.transform = CGAffineTransform(scaleX: 0.90, y: 0.90)
+        }
+    }
+
+    @objc private func avatarButtonTouchUp() {
+        UIView.animate(withDuration: 0.15, delay: 0, usingSpringWithDamping: 0.5,
+                       initialSpringVelocity: 6, options: .allowUserInteraction) {
+            self.avatarButton.transform = .identity
+        }
+    }
+
+    @objc private func avatarButtonTapped() {
+        let username  = AuthManager.shared.username ?? "未知用户"
+        let sheet = UIAlertController(
+            title: "👤 \(username)",
+            message: "登录账号管理",
+            preferredStyle: .actionSheet
+        )
+
+        // 清除 WebView 缓存
+        sheet.addAction(UIAlertAction(title: "🗑  清除网页缓存", style: .default) { [weak self] _ in
+            self?.clearWebCache()
+        })
+
+        // 退出登录
+        sheet.addAction(UIAlertAction(title: "🚪  退出登录", style: .destructive) { [weak self] _ in
+            self?.confirmLogout()
+        })
+
+        sheet.addAction(UIAlertAction(title: "取消", style: .cancel))
+
+        // iPad 需要设置 popoverPresentationController
+        if let popover = sheet.popoverPresentationController {
+            popover.sourceView = avatarButton
+            popover.sourceRect = avatarButton.bounds
+        }
+
+        present(sheet, animated: true)
+    }
+
+    // MARK: - 退出确认
+    private func confirmLogout() {
+        let alert = UIAlertController(
+            title: "退出登录",
+            message: "确定要退出登录吗？",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "退出", style: .destructive) { [weak self] _ in
+            self?.performLogout()
+        })
+        alert.addAction(UIAlertAction(title: "取消", style: .cancel))
+        present(alert, animated: true)
+    }
+
+    // MARK: - 执行退出
+    private func performLogout() {
+        // 清除登录状态
+        AuthManager.shared.logout()
+
+        // 清除 WebView 缓存（可选，退出时顺带清理）
+        WKWebsiteDataStore.default().fetchDataRecords(
+            ofTypes: WKWebsiteDataStore.allWebsiteDataTypes()
+        ) { records in
+            WKWebsiteDataStore.default().removeData(
+                ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(),
+                for: records
+            ) {}
+        }
+
+        // 跳转到登录页
+        let loginVC = LoginViewController()
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = windowScene.windows.first else { return }
+        window.rootViewController = loginVC
+        UIView.transition(with: window, duration: 0.35, options: .transitionCrossDissolve, animations: nil)
+    }
+
+    // MARK: - 清除网页缓存
+    private func clearWebCache() {
+        WKWebsiteDataStore.default().fetchDataRecords(
+            ofTypes: WKWebsiteDataStore.allWebsiteDataTypes()
+        ) { [weak self] records in
+            WKWebsiteDataStore.default().removeData(
+                ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(),
+                for: records
+            ) {
+                DispatchQueue.main.async {
+                    self?.loadURL()   // 缓存清除后刷新页面
+                    let toast = UIAlertController(title: "✅ 缓存已清除", message: nil, preferredStyle: .alert)
+                    self?.present(toast, animated: true)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                        toast.dismiss(animated: true)
+                    }
+                }
+            }
+        }
     }
     
     private func setupWebView() {
