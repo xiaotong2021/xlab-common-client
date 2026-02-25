@@ -4,9 +4,6 @@
 //
 //  认证管理器 - 负责登录状态管理、token存储
 //
-//  使用 App Group UserDefaults，使主 App 与 App Intent（快捷指令）进程共享同一份存储。
-//  App Group ID: group.com.xlab.aiime（需在 Apple Developer Portal 中注册）
-//
 
 import Foundation
 import os.log
@@ -26,25 +23,14 @@ struct AppLogger {
 class AuthManager {
     static let shared = AuthManager()
 
-    /// App Group ID，与 entitlements 文件保持一致
-    private let appGroupID  = "group.com.xlab.aiime"
     private let tokenKey    = "auth_token"
     private let usernameKey = "auth_username"
-
-    /// 优先使用 App Group UserDefaults，回退到 standard（模拟器或未配置 App Group 时）
-    private var defaults: UserDefaults {
-        if let ud = UserDefaults(suiteName: appGroupID) {
-            return ud
-        }
-        os_log("[AuthManager] ⚠️ App Group UserDefaults 不可用，回退到 standard", log: AppLogger.auth, type: .default)
-        return UserDefaults.standard
-    }
+    private var defaults: UserDefaults { UserDefaults.standard }
 
     private init() {
-        let udAvailable = UserDefaults(suiteName: appGroupID) != nil
-        os_log("[AuthManager] 初始化，App Group UserDefaults 可用=%{public}@，isLoggedIn=%{public}@",
+        os_log("[AuthManager] 初始化，isLoggedIn=%{public}@，token 长度=%d",
                log: AppLogger.auth, type: .default,
-               String(udAvailable), String(isLoggedIn))
+               String(isLoggedIn), token?.count ?? 0)
     }
 
     // MARK: - 登录状态
