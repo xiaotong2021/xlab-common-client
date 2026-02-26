@@ -1,0 +1,5 @@
+[submodule "ios/Hamster"]
+	path = ios/Hamster
+	url = git@github.com:chongxuan2024/Hamster.git
+	branch = main
+
