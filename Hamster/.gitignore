@@ -1,0 +1,34 @@
+.DS_Store
+.build
+.swiftpm
+.netrc
+/lib
+.vscode
+.plum
+.deps
+.HamsterInputSchemas
+Resources/SharedSupport/*.zip
+*.zip
+*.tgz
+
+
+# xcode gitignore
+# https://github.com/github/gitignore/blob/main/Global/Xcode.gitignore
+## User settings
+xcuserdata/
+## Xcode 8 and earlier
+*.xcscmblueprint
+*.xccheckout
+.history
+.HamsterInputSchemas/
+.tmp
+package/
+# xcframework 已直接提交入库，不再忽略
+# *.xcframework
+
+# VueJS
+/Packages/HamsterFileServer/Front/node_modules
+/Packages/HamsterFileServer/Front/dist/*
+/.idea/
+/build/
+/参考项目/
