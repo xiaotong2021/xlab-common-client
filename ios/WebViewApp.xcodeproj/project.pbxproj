@@ -71,7 +71,7 @@
 				8D1107560486CEB800E470B6 /* AIService.swift */,
 			8D1107580486CEB800E470B8 /* AIChatIntent.swift */,
 			8D1107590486CEB800E470B9 /* WebViewApp.entitlements */,
-			8D11073C0486CEB800E4709B /* Assets.xcassets */,
+				8D11073C0486CEB800E4709B /* Assets.xcassets */,
 				8D11073E0486CEB800E4709D /* LaunchScreen.storyboard */,
 				8D11074F0486CEB800E470AF /* webapp */,
 				8D11073F0486CEB800E4709E /* Info.plist */,
