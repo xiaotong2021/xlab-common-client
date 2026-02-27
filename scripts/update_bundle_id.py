@@ -1,6 +1,6 @@
 """
 替换 Hamster 工程中所有与 Bundle ID / App Group / iCloud / URL Scheme 相关的硬编码标识符，
-并修复 App Group 在无签名环境下的崩溃问题。
+修复 App Group 崩溃问题，并注入诊断日志帮助排查数据共享问题。
 
 替换范围:
   - project.pbxproj               PRODUCT_BUNDLE_IDENTIFIER
@@ -28,75 +28,52 @@ import pathlib
 
 # ── 替换规则 ─────────────────────────────────────────────────────────────────
 # (旧值, 类型) — 顺序至关重要：先长后短，避免部分匹配
-#
-# 类型映射:
-#   main        → bundle_id
-#   keyboard    → bundle_id_keyboard
-#   group       → group.{bundle_id}
-#   icloud      → iCloud.{bundle_id}
-#   icloud_path → iCloud~{bundle_id 中 . 替换为 ~}
-
 REPLACEMENTS = [
-    # ── App Group ──
+    # App Group
     ("group.dev2.fuxiao.app.Hamster2",                "group"),
     ("group.dev.fuxiao.app.Hamster",                  "group"),
 
-    # ── iCloud container ID (点号分隔, 用于 entitlements / Info.plist / 代码常量) ──
+    # iCloud container ID
     ("iCloud.dev.fuxiao.app.hamsterapp",              "icloud"),
 
-    # ── iCloud 文件路径 (波浪号分隔, iOS 文件系统中的实际路径) ──
+    # iCloud 文件路径 (波浪号分隔)
     ("iCloud~dev~fuxiao~app~hamsterapp",              "icloud_path"),
 
-    # ── 键盘扩展 Bundle ID (必须在主 Bundle ID 之前) ──
+    # 键盘扩展 Bundle ID
     ("dev2.fuxiao.app.Hamster2.HamsterKeyboard",      "keyboard"),
     ("dev.fuxiao.app.Hamster.HamsterKeyboard",        "keyboard"),
 
-    # ── 主 Bundle ID (大写 H — Xcode 项目配置) ──
+    # 主 Bundle ID (大写 H)
     ("dev2.fuxiao.app.Hamster2",                      "main"),
     ("dev.fuxiao.app.Hamster",                        "main"),
 
-    # ── URL host / CFBundleURLName (小写 h — 必须在大写版本之后，避免误替换) ──
-    # 注: "dev.fuxiao.app.hamsterapp" 已被上面的 iCloud 规则处理,
-    #     此处只匹配不带 "app" 后缀的 "dev.fuxiao.app.hamster"
+    # URL host (小写 h，在大写版本之后)
     ("dev.fuxiao.app.hamster",                        "main"),
 ]
 
 
 # ── 需要进行标识符替换的文件 ─────────────────────────────────────────────────
 TARGET_FILES = [
-    # Xcode project
     "Hamster.xcodeproj/project.pbxproj",
-
-    # Entitlements — App Group + iCloud
     "Hamster/Hamster.entitlements",
     "Hamster/HamsterDebug.entitlements",
     "HamsterKeyboard/HamsterKeyboard.entitlements",
     "HamsterKeyboard/HamsterKeyboardDebug.entitlements",
-
-    # 核心常量 — appGroupName / keyboardBundleID / iCloudID / appURL
     "Packages/HamsterKit/Sources/Constants/HamsterConstants.swift",
-
-    # 主 App Info.plist — CFBundleURLName / iCloud container
     "Hamster/Info.plist",
-
-    # 键盘工具栏 — URL scheme (打开主 App)
     "Packages/HamsterKeyboardKit/Sources/View/KeyboardToolbarView.swift",
-
-    # 文件管理 — iCloud 路径检测
     "Packages/HamsterKit/Sources/Extensions/FileManager+.swift",
-
-    # 键盘设置 — iCloud 路径检测
     "Packages/HamsteriOS/Sources/ViewModel/Keyboard/KeyboardSettingsViewModel.swift",
-
-    # RIME 同步 — iCloud 同步路径示例
     "Packages/HamsteriOS/Sources/ViewModel/RIME/RimeViewModel.swift",
 ]
 
 
-# ── App Group 强制解包 / fatalError 修复补丁 ──────────────────────────────────
+# ── 代码修复 + 诊断日志补丁 ──────────────────────────────────────────────────
 # (相对路径, 旧代码, 新代码)
-APP_GROUP_PATCHES = [
-    # 1. FileManager+.swift — shareURL 强制解包
+CODE_PATCHES = [
+    # ────────────────────────────────────────────────────────────────────────
+    # 1. FileManager+.swift — shareURL 强制解包 → 安全回退 + 诊断日志
+    # ────────────────────────────────────────────────────────────────────────
     (
         "Packages/HamsterKit/Sources/Extensions/FileManager+.swift",
         (
@@ -108,22 +85,30 @@ APP_GROUP_PATCHES = [
         ),
         (
             '  static var shareURL: URL {\n'
-            '    let base = FileManager.default.containerURL(\n'
+            '    let groupURL = FileManager.default.containerURL(\n'
             '      forSecurityApplicationGroupIdentifier: HamsterConstants.appGroupName)\n'
-            '      ?? sandboxDirectory.appendingPathComponent("AppGroupFallback")\n'
-            '    return base.appendingPathComponent("InputSchema")\n'
+            '    if let groupURL = groupURL {\n'
+            '      Logger.statistics.info("[AppGroup] shareURL: containerURL=\\(groupURL.path), appGroupName=\\(HamsterConstants.appGroupName)")\n'
+            '      return groupURL.appendingPathComponent("InputSchema")\n'
+            '    }\n'
+            '    Logger.statistics.error("[AppGroup] shareURL: containerURL 返回 nil! appGroupName=\\(HamsterConstants.appGroupName), 回退到沙盒")\n'
+            '    return sandboxDirectory.appendingPathComponent("AppGroupFallback/InputSchema")\n'
             '  }'
         ),
     ),
 
+    # ────────────────────────────────────────────────────────────────────────
     # 2. UserDefaults+.swift — UserDefaults.hamster 强制解包
+    # ────────────────────────────────────────────────────────────────────────
     (
         "Packages/HamsterKit/Sources/Extensions/UserDefaults+.swift",
         '  static let hamster = UserDefaults(suiteName: HamsterConstants.appGroupName)!',
         '  static let hamster = UserDefaults(suiteName: HamsterConstants.appGroupName) ?? .standard',
     ),
 
-    # 3. PersistentController.swift — CoreData storeURL 强制解包
+    # ────────────────────────────────────────────────────────────────────────
+    # 3. PersistentController.swift — CoreData storeURL 强制解包 + 日志
+    # ────────────────────────────────────────────────────────────────────────
     (
         "Packages/HamsterKit/Sources/Persistent/PersistentController.swift",
         (
@@ -135,20 +120,145 @@ APP_GROUP_PATCHES = [
             '    let groupURL = FileManager.default.containerURL(\n'
             '      forSecurityApplicationGroupIdentifier: HamsterConstants.appGroupName)\n'
             '    let baseURL = groupURL ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!\n'
-            '    let storeURL = baseURL.appendingPathComponent("\\(name).sqlite")'
+            '    let storeURL = baseURL.appendingPathComponent("\\(name).sqlite")\n'
+            '    print("[AppGroup] PersistentController: groupURL=\\(groupURL?.path ?? "nil"), storeURL=\\(storeURL.path)")'
         ),
     ),
 
-    # 4. UserManager.swift — fatalError 当 App Group 不可用时崩溃
+    # ────────────────────────────────────────────────────────────────────────
+    # 4. UserManager.swift — fatalError → 安全回退 + 诊断日志
+    # ────────────────────────────────────────────────────────────────────────
     (
         "Packages/HamsteriOS/Sources/Services/UserManager.swift",
         (
+            '    // 初始化 AppGroup 共享存储，使用 HamsterConstants 中定义的 appGroupName\n'
             '    guard let sharedUserDefaults = UserDefaults(suiteName: HamsterConstants.appGroupName) else {\n'
             '      fatalError("UserManager: 无法初始化 AppGroup 共享存储，AppGroup 名称: \\(HamsterConstants.appGroupName)")\n'
             '    }\n'
             '    self.sharedDefaults = sharedUserDefaults'
         ),
-        '    self.sharedDefaults = UserDefaults(suiteName: HamsterConstants.appGroupName) ?? .standard',
+        (
+            '    // 初始化 AppGroup 共享存储\n'
+            '    if let shared = UserDefaults(suiteName: HamsterConstants.appGroupName) {\n'
+            '      self.sharedDefaults = shared\n'
+            '      Logger.statistics.info("[AppGroup] UserManager: 共享存储初始化成功, appGroupName=\\(HamsterConstants.appGroupName)")\n'
+            '    } else {\n'
+            '      self.sharedDefaults = .standard\n'
+            '      Logger.statistics.error("[AppGroup] UserManager: 共享存储初始化失败! 回退到 .standard, appGroupName=\\(HamsterConstants.appGroupName)")\n'
+            '    }'
+        ),
+    ),
+
+    # ────────────────────────────────────────────────────────────────────────
+    # 5. RimeContext.start — 注入 RIME 启动路径诊断日志
+    # ────────────────────────────────────────────────────────────────────────
+    (
+        "Packages/HamsterKeyboardKit/Sources/RimeContext/RimeContext.swift",
+        (
+            '  func start(hasFullAccess: Bool) async {\n'
+            '    Rime.shared.setNotificationDelegate(self)\n'
+            '\n'
+            '    // 启动\n'
+            '    Rime.shared.start(Rime.createTraits(\n'
+            '      sharedSupportDir: FileManager.appGroupSharedSupportDirectoryURL.path,\n'
+            '      userDataDir: hasFullAccess ? FileManager.appGroupUserDataDirectoryURL.path : FileManager.sandboxUserDataDirectory.path\n'
+            '    ))'
+        ),
+        (
+            '  func start(hasFullAccess: Bool) async {\n'
+            '    Rime.shared.setNotificationDelegate(self)\n'
+            '\n'
+            '    let sharedSupportPath = FileManager.appGroupSharedSupportDirectoryURL.path\n'
+            '    let userDataPath = hasFullAccess ? FileManager.appGroupUserDataDirectoryURL.path : FileManager.sandboxUserDataDirectory.path\n'
+            '    let ssExists = FileManager.default.fileExists(atPath: sharedSupportPath)\n'
+            '    let udExists = FileManager.default.fileExists(atPath: userDataPath)\n'
+            '    Logger.statistics.info("[RIME] start: shareURL=\\(FileManager.shareURL.path)")\n'
+            '    Logger.statistics.info("[RIME] start: sharedSupport=\\(sharedSupportPath) exists=\\(ssExists)")\n'
+            '    Logger.statistics.info("[RIME] start: userData=\\(userDataPath) exists=\\(udExists)")\n'
+            '    Logger.statistics.info("[RIME] start: hasFullAccess=\\(hasFullAccess), appGroupName=\\(HamsterConstants.appGroupName)")\n'
+            '\n'
+            '    // 启动\n'
+            '    Rime.shared.start(Rime.createTraits(\n'
+            '      sharedSupportDir: sharedSupportPath,\n'
+            '      userDataDir: userDataPath\n'
+            '    ))'
+        ),
+    ),
+
+    # ────────────────────────────────────────────────────────────────────────
+    # 6. KeyboardContext — 配置加载路径诊断日志
+    # ────────────────────────────────────────────────────────────────────────
+    (
+        "Packages/HamsterKeyboardKit/Sources/KeyboardKit/Keyboard/KeyboardContext.swift",
+        (
+            '      // plist 格式大约 28.48 ms/ 27.59 ms\n'
+            '      let data = try Data(contentsOf: FileManager.appGroupUserDataDirectoryURL.appendingPathComponent("/build/hamster.plist"))\n'
+            '      self.hamsterConfiguration = try PropertyListDecoder().decode(HamsterConfiguration.self, from: data)'
+        ),
+        (
+            '      // plist 格式大约 28.48 ms/ 27.59 ms\n'
+            '      let configURL = FileManager.appGroupUserDataDirectoryURL.appendingPathComponent("/build/hamster.plist")\n'
+            '      let configExists = FileManager.default.fileExists(atPath: configURL.path)\n'
+            '      Logger.statistics.info("[KeyboardConfig] path=\\(configURL.path) exists=\\(configExists) appGroup=\\(HamsterConstants.appGroupName)")\n'
+            '      let data = try Data(contentsOf: configURL)\n'
+            '      self.hamsterConfiguration = try PropertyListDecoder().decode(HamsterConfiguration.self, from: data)\n'
+            '      Logger.statistics.info("[KeyboardConfig] 配置加载成功")'
+        ),
+    ),
+
+    # ────────────────────────────────────────────────────────────────────────
+    # 7. RimeContext.deployment — 同步到 AppGroup 后增加诊断日志
+    # ────────────────────────────────────────────────────────────────────────
+    (
+        "Packages/HamsterKeyboardKit/Sources/RimeContext/RimeContext.swift",
+        (
+            '    // 将 Sandbox 目录下方案复制到AppGroup下\n'
+            '    try FileManager.syncSandboxSharedSupportDirectoryToAppGroup(override: true)\n'
+            '    try FileManager.syncSandboxUserDataDirectoryToAppGroup(override: true)\n'
+            '  }\n'
+            '\n'
+            '  /// RIME 同步\n'
+            '  /// 注意：仅可用于主 App 调用'
+        ),
+        (
+            '    // 将 Sandbox 目录下方案复制到AppGroup下\n'
+            '    Logger.statistics.info("[Deploy] 开始同步 Sandbox→AppGroup: sandbox=\\(FileManager.sandboxSharedSupportDirectory.path) → appGroup=\\(FileManager.appGroupSharedSupportDirectoryURL.path)")\n'
+            '    try FileManager.syncSandboxSharedSupportDirectoryToAppGroup(override: true)\n'
+            '    try FileManager.syncSandboxUserDataDirectoryToAppGroup(override: true)\n'
+            '    let plistPath = FileManager.appGroupUserDataDirectoryURL.appendingPathComponent("/build/hamster.plist").path\n'
+            '    Logger.statistics.info("[Deploy] 同步完成: hamster.plist exists=\\(FileManager.default.fileExists(atPath: plistPath))")\n'
+            '  }\n'
+            '\n'
+            '  /// RIME 同步\n'
+            '  /// 注意：仅可用于主 App 调用'
+        ),
+    ),
+
+    # ────────────────────────────────────────────────────────────────────────
+    # 8. SharedUserManager — 登录状态读取诊断日志
+    #    注意：该文件已有基本日志，此补丁在初始化时增加 App Group 可用性检查
+    # ────────────────────────────────────────────────────────────────────────
+    (
+        "Packages/HamsterKeyboardKit/Sources/Services/SharedUserManager.swift",
+        (
+            '  private init() {\n'
+            '    Logger.statistics.info("SharedUserManager: 初始化跨target用户管理器，AppGroup: \\(HamsterConstants.appGroupName)")\n'
+            '  }'
+        ),
+        (
+            '  private init() {\n'
+            '    let testGroupURL = FileManager.default.containerURL(\n'
+            '      forSecurityApplicationGroupIdentifier: HamsterConstants.appGroupName)\n'
+            '    Logger.statistics.info("[SharedUser] init: appGroupName=\\(HamsterConstants.appGroupName)")\n'
+            '    Logger.statistics.info("[SharedUser] init: containerURL=\\(testGroupURL?.path ?? "nil")")\n'
+            '    Logger.statistics.info("[SharedUser] init: sharedDefaults suiteName=\\(HamsterConstants.appGroupName)")\n'
+            '    if let testData = sharedDefaults.data(forKey: userDefaultsKey) {\n'
+            '      Logger.statistics.info("[SharedUser] init: 发现已存储的用户数据, size=\\(testData.count) bytes")\n'
+            '    } else {\n'
+            '      Logger.statistics.warning("[SharedUser] init: 未找到用户数据 (key=\\(userDefaultsKey))")\n'
+            '    }\n'
+            '  }'
+        ),
     ),
 ]
 
@@ -175,9 +285,9 @@ def update_file(path: pathlib.Path, target_map: dict[str, str]) -> bool:
 
 
 def apply_patches(hamster_dir: pathlib.Path) -> int:
-    """修复所有 App Group 强制解包 / fatalError 崩溃。"""
+    """应用所有代码修复补丁和诊断日志注入。"""
     patched = 0
-    for rel_path, old_code, new_code in APP_GROUP_PATCHES:
+    for rel_path, old_code, new_code in CODE_PATCHES:
         path = hamster_dir / rel_path
         if not path.exists():
             print(f"  ⚠️  文件不存在，跳过: {path.name}")
@@ -190,7 +300,7 @@ def apply_patches(hamster_dir: pathlib.Path) -> int:
 
         content = content.replace(old_code, new_code)
         path.write_text(content)
-        print(f"  ✅ {path.name}: 强制解包/fatalError 已修复")
+        print(f"  ✅ {path.name}: 已修复 + 注入诊断日志")
         patched += 1
     return patched
 
@@ -205,11 +315,13 @@ def verify_no_remnants(hamster_dir: pathlib.Path) -> list[str]:
         "iCloud~dev~fuxiao~app~hamsterapp",
     ]
     scan_extensions = {".swift", ".plist", ".entitlements", ".pbxproj", ".xcconfig"}
+    skip_patterns = {".build/", "DerivedData", ".git/", "Package.resolved"}
     warnings = []
 
     for ext in scan_extensions:
         for path in hamster_dir.rglob(f"*{ext}"):
-            if ".build/" in str(path) or "DerivedData" in str(path):
+            str_path = str(path)
+            if any(skip in str_path for skip in skip_patterns):
                 continue
             try:
                 content = path.read_text()
@@ -218,7 +330,13 @@ def verify_no_remnants(hamster_dir: pathlib.Path) -> list[str]:
             for pattern in remnant_patterns:
                 if pattern in content:
                     rel = path.relative_to(hamster_dir)
-                    warnings.append(f"  ⚠️  残留发现: {rel} 中仍包含 '{pattern}'")
+                    lines = [
+                        f"    L{i+1}: {line.strip()}"
+                        for i, line in enumerate(content.splitlines())
+                        if pattern in line
+                    ]
+                    detail = "\n".join(lines[:5])
+                    warnings.append(f"  ⚠️  {rel} 中残留 '{pattern}':\n{detail}")
 
     return warnings
 
@@ -267,8 +385,8 @@ def main():
         if update_file(path, target_map):
             updated += 1
 
-    # ── 修复 App Group 强制解包 / fatalError 崩溃 ──
-    print("\n修复 App Group 强制解包 / fatalError:")
+    # ── 应用代码修复 + 诊断日志注入 ──
+    print("\n应用代码修复 + 诊断日志:")
     updated += apply_patches(hamster_dir)
 
     # ── 替换后：显示最终标识符 ──
@@ -289,13 +407,24 @@ def main():
                    ["appGroupName", "iCloudID", "keyboardBundleID", "appURL"]):
                 print(f"  {stripped}")
 
+    # ── 验证关键 entitlements ──
+    for ent_file in ["Hamster/Hamster.entitlements", "HamsterKeyboard/HamsterKeyboard.entitlements",
+                     "Hamster/HamsterDebug.entitlements", "HamsterKeyboard/HamsterKeyboardDebug.entitlements"]:
+        path = hamster_dir / ent_file
+        if path.exists():
+            content = path.read_text()
+            groups = [line.strip() for line in content.splitlines()
+                      if "group." in line and "<string>" in line]
+            if groups:
+                print(f"\n{ent_file} App Group: {', '.join(groups)}")
+
     # ── 残留检查 ──
     print("\n检查残留的旧标识符:")
     warnings = verify_no_remnants(hamster_dir)
     if warnings:
         for w in warnings:
             print(w)
-        print(f"\n⚠️  发现 {len(warnings)} 处残留，请手动检查（可能是注释/文档）")
+        print(f"\n⚠️  发现 {len(warnings)} 处残留")
     else:
         print("  ✅ 未发现残留的旧标识符")
 
