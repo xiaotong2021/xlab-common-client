@@ -19,7 +19,7 @@ env:
 
 jobs:
   # ============================================================================
-  # Job 1 ── 读取构建配置
+  # Job 1 ── 读取构建配置（仅从配置文件读取，不涉及 secrets）
   # ============================================================================
   prepare:
     name: Prepare Build Configuration
@@ -28,10 +28,9 @@ jobs:
       need_debug: ${{ steps.config.outputs.need_debug }}
       app_version: ${{ steps.config.outputs.app_version }}
       app_display_name: ${{ steps.config.outputs.app_display_name }}
-      bundle_id: ${{ steps.config.outputs.bundle_id }}
-      bundle_id_keyboard: ${{ steps.config.outputs.bundle_id_keyboard }}
-      team_id: ${{ steps.config.outputs.team_id }}
-      export_method: ${{ steps.config.outputs.export_method }}
+      cfg_bundle_id: ${{ steps.config.outputs.cfg_bundle_id }}
+      cfg_team_id: ${{ steps.config.outputs.cfg_team_id }}
+      cfg_export_method: ${{ steps.config.outputs.cfg_export_method }}
 
     steps:
       - name: Checkout code
@@ -41,47 +40,30 @@ jobs:
 
       - name: Read build configuration
         id: config
-        env:
-          SECRET_BUNDLE_ID:          ${{ secrets.IOS_BUNDLE_ID }}
-          SECRET_BUNDLE_ID_KEYBOARD: ${{ secrets.IOS_BUNDLE_ID_KEYBOARD }}
-          SECRET_TEAM_ID:            ${{ secrets.IOS_TEAM_ID }}
-          SECRET_EXPORT_METHOD:      ${{ secrets.IOS_EXPORT_METHOD }}
         run: |
           APP_NAME=$(grep 'appName=' assets/build.app | cut -d'=' -f2)
           CONFIG_FILE="assets/$APP_NAME/app.cfg"
 
-          # 从配置文件读取值
-          CFG_NEED_DEBUG=$(grep '^needDebug=' $CONFIG_FILE | cut -d'=' -f2 | tr '[:upper:]' '[:lower:]')
-          CFG_APP_VERSION=$(grep '^appVersion=' $CONFIG_FILE | cut -d'=' -f2)
-          CFG_APP_DISPLAY_NAME=$(grep '^appDisplayName=' $CONFIG_FILE | cut -d'=' -f2)
+          NEED_DEBUG=$(grep '^needDebug=' $CONFIG_FILE | cut -d'=' -f2 | tr '[:upper:]' '[:lower:]')
+          APP_VERSION=$(grep '^appVersion=' $CONFIG_FILE | cut -d'=' -f2)
+          APP_DISPLAY_NAME=$(grep '^appDisplayName=' $CONFIG_FILE | cut -d'=' -f2)
           CFG_BUNDLE_ID=$(grep '^appId=' $CONFIG_FILE | cut -d'=' -f2)
           CFG_TEAM_ID=$(grep '^iosTeamId=' $CONFIG_FILE | cut -d'=' -f2)
           CFG_EXPORT_METHOD=$(grep '^iosExportMethod=' $CONFIG_FILE | cut -d'=' -f2)
 
-          # 优先使用 GitHub Secrets，未设置则回退到配置文件
-          NEED_DEBUG=${CFG_NEED_DEBUG:-false}
-          APP_VERSION=$CFG_APP_VERSION
-          APP_DISPLAY_NAME=$CFG_APP_DISPLAY_NAME
-          BUNDLE_ID=${SECRET_BUNDLE_ID:-$CFG_BUNDLE_ID}
-          TEAM_ID=${SECRET_TEAM_ID:-$CFG_TEAM_ID}
-          EXPORT_METHOD=${SECRET_EXPORT_METHOD:-${CFG_EXPORT_METHOD:-app-store}}
-          BUNDLE_ID_KEYBOARD=${SECRET_BUNDLE_ID_KEYBOARD:-${BUNDLE_ID}.HamsterKeyboard}
+          echo "need_debug=${NEED_DEBUG:-false}"             >> $GITHUB_OUTPUT
+          echo "app_version=$APP_VERSION"                    >> $GITHUB_OUTPUT
+          echo "app_display_name=$APP_DISPLAY_NAME"          >> $GITHUB_OUTPUT
+          echo "cfg_bundle_id=$CFG_BUNDLE_ID"                >> $GITHUB_OUTPUT
+          echo "cfg_team_id=$CFG_TEAM_ID"                    >> $GITHUB_OUTPUT
+          echo "cfg_export_method=${CFG_EXPORT_METHOD:-app-store}" >> $GITHUB_OUTPUT
 
-          echo "need_debug=$NEED_DEBUG"                    >> $GITHUB_OUTPUT
-          echo "app_version=$APP_VERSION"                  >> $GITHUB_OUTPUT
-          echo "app_display_name=$APP_DISPLAY_NAME"        >> $GITHUB_OUTPUT
-          echo "bundle_id=$BUNDLE_ID"                      >> $GITHUB_OUTPUT
-          echo "bundle_id_keyboard=$BUNDLE_ID_KEYBOARD"    >> $GITHUB_OUTPUT
-          echo "team_id=$TEAM_ID"                          >> $GITHUB_OUTPUT
-          echo "export_method=$EXPORT_METHOD"              >> $GITHUB_OUTPUT
-
-          echo "Need Debug: $NEED_DEBUG"
+          echo "Need Debug: ${NEED_DEBUG:-false}"
           echo "App Version: $APP_VERSION"
           echo "App Display Name: $APP_DISPLAY_NAME"
-          echo "Bundle ID: $BUNDLE_ID (source: $([ -n "$SECRET_BUNDLE_ID" ] && echo 'secrets' || echo 'app.cfg'))"
-          echo "Bundle ID Keyboard: $BUNDLE_ID_KEYBOARD (source: $([ -n "$SECRET_BUNDLE_ID_KEYBOARD" ] && echo 'secrets' || echo 'derived'))"
-          echo "Team ID: $TEAM_ID (source: $([ -n "$SECRET_TEAM_ID" ] && echo 'secrets' || echo 'app.cfg'))"
-          echo "Export Method: $EXPORT_METHOD (source: $([ -n "$SECRET_EXPORT_METHOD" ] && echo 'secrets' || echo 'app.cfg'))"
+          echo "Bundle ID (cfg): $CFG_BUNDLE_ID"
+          echo "Team ID (cfg): $CFG_TEAM_ID"
+          echo "Export Method (cfg): ${CFG_EXPORT_METHOD:-app-store}"
 
   # ============================================================================
   # Job 2 ── iOS 构建（Debug + Release）+ GitHub Release
@@ -103,7 +85,7 @@ jobs:
   build:
     name: Build Hamster iOS App
     needs: prepare
-    runs-on: macos-13
+    runs-on: macos-14
     permissions:
       contents: write
 
@@ -118,6 +100,32 @@ jobs:
       # ── 切换 Xcode 版本 ────────────────────────────────────────────────────────
       - name: Select Xcode ${{ env.XCODE_VERSION }}
         run: sudo xcode-select -s "/Applications/Xcode_${{ env.XCODE_VERSION }}.app"
+
+      # ── 解析最终构建参数（Secrets 优先，回退到配置文件）───────────────────────────
+      - name: Resolve build parameters
+        env:
+          SECRET_BUNDLE_ID:          ${{ secrets.IOS_BUNDLE_ID }}
+          SECRET_BUNDLE_ID_KEYBOARD: ${{ secrets.IOS_BUNDLE_ID_KEYBOARD }}
+          SECRET_TEAM_ID:            ${{ secrets.IOS_TEAM_ID }}
+          SECRET_EXPORT_METHOD:      ${{ secrets.IOS_EXPORT_METHOD }}
+          CFG_BUNDLE_ID:             ${{ needs.prepare.outputs.cfg_bundle_id }}
+          CFG_TEAM_ID:               ${{ needs.prepare.outputs.cfg_team_id }}
+          CFG_EXPORT_METHOD:         ${{ needs.prepare.outputs.cfg_export_method }}
+        run: |
+          BUNDLE_ID=${SECRET_BUNDLE_ID:-$CFG_BUNDLE_ID}
+          BUNDLE_ID_KEYBOARD=${SECRET_BUNDLE_ID_KEYBOARD:-${BUNDLE_ID}.HamsterKeyboard}
+          TEAM_ID=${SECRET_TEAM_ID:-$CFG_TEAM_ID}
+          EXPORT_METHOD=${SECRET_EXPORT_METHOD:-$CFG_EXPORT_METHOD}
+
+          echo "BUNDLE_ID=$BUNDLE_ID"                   >> $GITHUB_ENV
+          echo "BUNDLE_ID_KEYBOARD=$BUNDLE_ID_KEYBOARD" >> $GITHUB_ENV
+          echo "TEAM_ID=$TEAM_ID"                       >> $GITHUB_ENV
+          echo "EXPORT_METHOD=$EXPORT_METHOD"            >> $GITHUB_ENV
+
+          echo "Bundle ID: $BUNDLE_ID (source: $([ -n "$SECRET_BUNDLE_ID" ] && echo 'secrets' || echo 'app.cfg'))"
+          echo "Bundle ID Keyboard: $BUNDLE_ID_KEYBOARD (source: $([ -n "$SECRET_BUNDLE_ID_KEYBOARD" ] && echo 'secrets' || echo 'derived'))"
+          echo "Team ID: $TEAM_ID (source: $([ -n "$SECRET_TEAM_ID" ] && echo 'secrets' || echo 'app.cfg'))"
+          echo "Export Method: $EXPORT_METHOD (source: $([ -n "$SECRET_EXPORT_METHOD" ] && echo 'secrets' || echo 'app.cfg'))"
 
       # ── 校验 Frameworks ────────────────────────────────────────────────────────
       - name: Verify Frameworks
@@ -252,11 +260,6 @@ jobs:
 
       - name: Generate exportOptions.plist
         working-directory: ${{ env.HAMSTER_DIR }}
-        env:
-          EXPORT_METHOD: ${{ needs.prepare.outputs.export_method }}
-          TEAM_ID:       ${{ needs.prepare.outputs.team_id }}
-          BUNDLE_ID:     ${{ needs.prepare.outputs.bundle_id }}
-          BUNDLE_ID_KB:  ${{ needs.prepare.outputs.bundle_id_keyboard }}
         run: |
           cat > exportOptions.plist << EOF
           <?xml version="1.0" encoding="UTF-8"?>
@@ -275,7 +278,7 @@ jobs:
               <dict>
                   <key>${BUNDLE_ID}</key>
                   <string>${MAIN_PROFILE_NAME}</string>
-                  <key>${BUNDLE_ID_KB}</key>
+                  <key>${BUNDLE_ID_KEYBOARD}</key>
                   <string>${KEYBOARD_PROFILE_NAME}</string>
               </dict>
           </dict>
