@@ -1,19 +1,35 @@
-name: Build WebView App
+name: Build iOS App
 
+# ──────────────────────────────────────────────────────────────────────────────
+# 触发条件：推送 v* tag 时触发构建
+# ──────────────────────────────────────────────────────────────────────────────
 on:
   push:
     tags:
-      - "v*" # Trigger when pushing tags starting with v, e.g. v1.0.0
+      - "v*"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 全局常量（与 Xcode project.pbxproj Release 配置保持一致）
+# ──────────────────────────────────────────────────────────────────────────────
+env:
+  XCODE_VERSION:      "15.0.1"
+  PROJECT:            "Hamster.xcodeproj"
+  SCHEME:             "Hamster"
+  HAMSTER_DIR:        "Hamster"
+  BUNDLE_ID_MAIN:     "dev.fuxiao.app.Hamster"
+  BUNDLE_ID_KEYBOARD: "dev.fuxiao.app.Hamster.HamsterKeyboard"
 
 jobs:
+  # ============================================================================
+  # Job 1 ── 读取构建配置
+  # ============================================================================
   prepare:
     name: Prepare Build Configuration
     runs-on: ubuntu-latest
     outputs:
-      build_android: ${{ steps.config.outputs.build_android }}
-      build_ios: ${{ steps.config.outputs.build_ios }}
       need_debug: ${{ steps.config.outputs.need_debug }}
       app_version: ${{ steps.config.outputs.app_version }}
+      app_display_name: ${{ steps.config.outputs.app_display_name }}
 
     steps:
       - name: Checkout code
@@ -21,193 +37,95 @@ jobs:
         with:
           submodules: 'recursive'
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
-
       - name: Read build configuration
         id: config
         run: |
-          # 读取 build.app
           APP_NAME=$(grep 'appName=' assets/build.app | cut -d'=' -f2)
-          echo "App Name: $APP_NAME"
-          
-          # 读取配置文件
           CONFIG_FILE="assets/$APP_NAME/app.cfg"
-          
-          # 提取配置值
-          BUILD_ANDROID=$(grep '^buildAndroid=' $CONFIG_FILE | cut -d'=' -f2 | tr '[:upper:]' '[:lower:]')
-          BUILD_IOS=$(grep '^buildIOS=' $CONFIG_FILE | cut -d'=' -f2 | tr '[:upper:]' '[:lower:]')
+
           NEED_DEBUG=$(grep '^needDebug=' $CONFIG_FILE | cut -d'=' -f2 | tr '[:upper:]' '[:lower:]')
           APP_VERSION=$(grep '^appVersion=' $CONFIG_FILE | cut -d'=' -f2)
-          
-          # 设置默认值
+          APP_DISPLAY_NAME=$(grep '^appDisplayName=' $CONFIG_FILE | cut -d'=' -f2)
+
           NEED_DEBUG=${NEED_DEBUG:-false}
-          
-          echo "build_android=$BUILD_ANDROID" >> $GITHUB_OUTPUT
-          echo "build_ios=$BUILD_IOS" >> $GITHUB_OUTPUT
-          echo "need_debug=$NEED_DEBUG" >> $GITHUB_OUTPUT
-          echo "app_version=$APP_VERSION" >> $GITHUB_OUTPUT
-          
-          echo "Build Android: $BUILD_ANDROID"
-          echo "Build iOS: $BUILD_IOS"
+
+          echo "need_debug=$NEED_DEBUG"              >> $GITHUB_OUTPUT
+          echo "app_version=$APP_VERSION"            >> $GITHUB_OUTPUT
+          echo "app_display_name=$APP_DISPLAY_NAME"  >> $GITHUB_OUTPUT
+
           echo "Need Debug: $NEED_DEBUG"
           echo "App Version: $APP_VERSION"
+          echo "App Display Name: $APP_DISPLAY_NAME"
 
+  # ============================================================================
+  # Job 2 ── iOS 构建（Debug + Release）+ GitHub Release
+  #
+  #  所需 GitHub Secrets:
+  #    KEYCHAIN_PASSWORD                        临时 keychain 密码（任意字符串）
+  #    IOS_TEAM_ID                              Apple 开发者 Team ID
+  #    IOS_CERTIFICATE_BASE64                   发布证书 .p12 的 base64 编码
+  #    IOS_CERTIFICATE_PASSWORD                 .p12 证书的保护密码
+  #    IOS_PROVISIONING_PROFILE_BASE64          主 App 描述文件 .mobileprovision 的 base64
+  #    IOS_KEYBOARD_PROVISIONING_PROFILE_BASE64 键盘扩展描述文件 .mobileprovision 的 base64
+  #    IOS_EXPORT_METHOD                        导出方式: app-store / ad-hoc / development
+  #    TOKEN                                    GitHub Token（用于 Release）
+  # ============================================================================
   build:
-    name: Build iOS and Android Apps
+    name: Build Hamster iOS App
     needs: prepare
-    runs-on: macos-latest
+    runs-on: macos-13
     permissions:
       contents: write
-      packages: write
 
     steps:
+      # ── 拉取代码 ──────────────────────────────────────────────────────────────
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           submodules: 'recursive'
           token: ${{ secrets.TOKEN }}
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
+      # ── 切换 Xcode 版本 ────────────────────────────────────────────────────────
+      - name: Select Xcode ${{ env.XCODE_VERSION }}
+        run: sudo xcode-select -s "/Applications/Xcode_${{ env.XCODE_VERSION }}.app"
 
-      - name: Install Python dependencies
+      # ── 校验 Frameworks ────────────────────────────────────────────────────────
+      - name: Verify Frameworks
+        working-directory: ${{ env.HAMSTER_DIR }}
         run: |
-          pip install Pillow PyJWT requests cryptography
+          required=(
+            "boost_atomic.xcframework"   "boost_filesystem.xcframework"
+            "boost_locale.xcframework"   "boost_regex.xcframework"
+            "boost_system.xcframework"   "icudata.xcframework"
+            "icui18n.xcframework"        "icuio.xcframework"
+            "icuuc.xcframework"          "libglog.xcframework"
+            "libleveldb.xcframework"     "libmarisa.xcframework"
+            "libopencc.xcframework"      "librime.xcframework"
+            "librime-sbxlm.xcframework"  "libyaml-cpp.xcframework"
+          )
+          missing=()
+          for fw in "${required[@]}"; do
+            [ -d "Frameworks/$fw" ] && echo "  ✓ $fw" || { echo "  ✗ $fw ← MISSING"; missing+=("$fw"); }
+          done
+          [ ${#missing[@]} -eq 0 ] && echo "✅ 所有 xcframework 就绪" || { echo "❌ 缺失: ${missing[*]}"; exit 1; }
 
-      - name: Configure project
+      # ── 编译输入方案（rime-ice 等）──────────────────────────────────────────────
+      - name: Build Schemas
+        working-directory: ${{ env.HAMSTER_DIR }}
+        run: make schema
+
+      # ── 清理 DerivedData ────────────────────────────────────────────────────────
+      - name: Clean DerivedData
+        run: rm -rf ~/Library/Developer/Xcode/DerivedData/*
+
+      # ========== iOS Debug 构建（模拟器，无需签名） ==========
+      - name: Build Debug (Simulator)
+        if: needs.prepare.outputs.need_debug == 'true'
+        working-directory: ${{ env.HAMSTER_DIR }}
         run: |
-          python3 scripts/build_config.py ${{ github.workspace }}
-
-      - name: Verify build configuration
-        run: |
-          chmod +x scripts/verify_build.sh
-          bash scripts/verify_build.sh
-
-      # ========== iOS 构建 ==========
-      - name: Setup Xcode
-        if: needs.prepare.outputs.build_ios == 'true'
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: 'latest-stable'
-
-      - name: Create exportOptions.plist placeholder
-        if: needs.prepare.outputs.build_ios == 'true'
-        run: |
-          # exportOptions.plist 将在证书安装后创建
-          echo "exportOptions.plist will be created after certificate installation"
-
-      - name: Install certificates and provisioning profiles
-        if: needs.prepare.outputs.build_ios == 'true'
-        run: |
-          # 创建临时keychain
-          security create-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
-          security set-keychain-settings -t 3600 -u build.keychain
-          
-          # 导入证书
-          echo "${{ secrets.IOS_CERTIFICATE_BASE64 }}" | base64 --decode > certificate.p12
-          security import certificate.p12 -k build.keychain -P "${{ secrets.IOS_CERTIFICATE_PASSWORD }}" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple: -s -k "${{ secrets.KEYCHAIN_PASSWORD }}" build.keychain
-          
-          # 安装provisioning profile
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          echo "${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}" | base64 --decode > profile.mobileprovision
-          
-          # 获取 Profile UUID（使用 security 命令解析）
-          PROFILE_UUID=$(security cms -D -i profile.mobileprovision | plutil -extract UUID raw -)
-          echo "PROFILE_UUID=$PROFILE_UUID" >> $GITHUB_ENV
-          echo "Installed Profile UUID: $PROFILE_UUID"
-          
-          # 获取 Profile 名称（用于 exportOptions.plist）
-          PROFILE_NAME=$(security cms -D -i profile.mobileprovision | plutil -extract Name raw -)
-          echo "PROFILE_NAME=$PROFILE_NAME" >> $GITHUB_ENV
-          echo "Profile Name: $PROFILE_NAME"
-          
-          # 从 app.cfg 读取实际的 Bundle ID（支持通配符 Profile）
-          # 不再从 Profile 中提取，因为 Profile 可能是通配符（如 com.xlab.*）
-          APP_NAME=$(cat assets/build.app | grep appName | cut -d'=' -f2)
-          BUNDLE_ID=$(grep "^appId=" assets/${APP_NAME}/app.cfg | cut -d'=' -f2)
-          echo "BUNDLE_ID=$BUNDLE_ID" >> $GITHUB_ENV
-          echo "Bundle ID from app.cfg: $BUNDLE_ID"
-          
-          # 验证 Profile 的 App ID（用于调试）
-          PROFILE_APP_ID=$(security cms -D -i profile.mobileprovision | plutil -extract Entitlements.application-identifier raw - | sed 's/^[^.]*\.//')
-          echo "Profile App ID: $PROFILE_APP_ID"
-          
-          # 复制 Profile 到正确的位置（使用 UUID 作为文件名）
-          cp profile.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/${PROFILE_UUID}.mobileprovision
-          
-          # 列出所有可用的签名身份（用于调试）
-          echo "Available signing identities:"
-          security find-identity -v -p codesigning build.keychain
-          
-          # 获取证书身份（SHA-1 hash）
-          CERT_IDENTITY=$(security find-identity -v -p codesigning build.keychain | grep "Apple Distribution" | head -1 | awk '{print $2}')
-          echo "CERT_IDENTITY=$CERT_IDENTITY" >> $GITHUB_ENV
-          echo "Certificate Identity: $CERT_IDENTITY"
-          
-          # 如果没有找到 Apple Distribution，尝试查找 iPhone Distribution
-          if [ -z "$CERT_IDENTITY" ]; then
-            CERT_IDENTITY=$(security find-identity -v -p codesigning build.keychain | grep "iPhone Distribution" | head -1 | awk '{print $2}')
-            echo "CERT_IDENTITY=$CERT_IDENTITY" >> $GITHUB_ENV
-            echo "Certificate Identity (iPhone): $CERT_IDENTITY"
-          fi
-          
-          # 设置 export method 和 team ID 为 shell 变量
-          EXPORT_METHOD="${{ secrets.IOS_EXPORT_METHOD }}"
-          if [ -z "$EXPORT_METHOD" ]; then
-            EXPORT_METHOD="app-store"
-          fi
-          TEAM_ID="${{ secrets.IOS_TEAM_ID }}"
-          
-          echo "Export Method: $EXPORT_METHOD"
-          echo "Team ID: $TEAM_ID"
-          
-          # 创建 exportOptions.plist（使用 Profile 名称支持通配符）
-          cat > ios/exportOptions.plist << EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>method</key>
-              <string>${EXPORT_METHOD}</string>
-              <key>teamID</key>
-              <string>${TEAM_ID}</string>
-              <key>uploadBitcode</key>
-              <false/>
-              <key>uploadSymbols</key>
-              <true/>
-              <key>compileBitcode</key>
-              <false/>
-              <key>signingStyle</key>
-              <string>manual</string>
-              <key>signingCertificate</key>
-              <string>Apple Distribution</string>
-              <key>provisioningProfiles</key>
-              <dict>
-                  <key>${BUNDLE_ID}</key>
-                  <string>${PROFILE_NAME}</string>
-              </dict>
-          </dict>
-          </plist>
-          EOF
-          
-          echo "=== Created exportOptions.plist ==="
-          cat ios/exportOptions.plist
-          echo "=== End of exportOptions.plist ==="
-
-      - name: Build iOS app (Debug)
-        if: needs.prepare.outputs.build_ios == 'true' && needs.prepare.outputs.need_debug == 'true'
-        run: |
-          cd ios
-          xcodebuild -project WebViewApp.xcodeproj \
-            -scheme WebViewApp \
+          xcodebuild build \
+            -project "${{ env.PROJECT }}" \
+            -scheme  "${{ env.SCHEME }}" \
             -configuration Debug \
             -sdk iphonesimulator \
             -derivedDataPath build-debug \
@@ -215,223 +133,209 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
 
-      - name: Build iOS app (Release)
-        if: needs.prepare.outputs.build_ios == 'true'
+      - name: Package Debug .app
+        if: needs.prepare.outputs.need_debug == 'true'
+        working-directory: ${{ env.HAMSTER_DIR }}
         run: |
-          cd ios
-          xcodebuild -project WebViewApp.xcodeproj \
-            -scheme WebViewApp \
+          APP_PATH=$(find build-debug -name "*.app" -not -path "*/PlugIns/*" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "❌ 未找到 .app 编译产物"
+            exit 1
+          fi
+          echo "📦 打包: $APP_PATH"
+          zip -r Hamster-Debug-Simulator.zip "$APP_PATH"
+
+      # ========== iOS Release 构建（真机签名） ==========
+      - name: Install Certificate & Provisioning Profiles
+        env:
+          CERTIFICATE_BASE64:      ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+          CERTIFICATE_PASSWORD:    ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          PROFILE_MAIN_BASE64:     ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          PROFILE_KEYBOARD_BASE64: ${{ secrets.IOS_KEYBOARD_PROVISIONING_PROFILE_BASE64 }}
+          KEYCHAIN_PASSWORD:       ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          # ── 创建临时 keychain ───────────────────────────────────────────────
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain  -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -t 3600 -u build.keychain
+
+          # ── 导入 .p12 证书 ─────────────────────────────────────────────────
+          echo "$CERTIFICATE_BASE64" | base64 --decode > certificate.p12
+          security import certificate.p12 \
+            -k build.keychain \
+            -P "$CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign
+          security set-key-partition-list \
+            -S apple-tool:,apple: \
+            -s -k "$KEYCHAIN_PASSWORD" build.keychain
+
+          # ── 安装主 App Provisioning Profile ────────────────────────────────
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+
+          echo "$PROFILE_MAIN_BASE64" | base64 --decode > profile_main.mobileprovision
+          MAIN_UUID=$(security cms -D -i profile_main.mobileprovision | plutil -extract UUID raw -)
+          MAIN_NAME=$(security cms -D -i profile_main.mobileprovision | plutil -extract Name raw -)
+          cp profile_main.mobileprovision \
+            ~/Library/MobileDevice/Provisioning\ Profiles/${MAIN_UUID}.mobileprovision
+          echo "主 App Profile: $MAIN_NAME (UUID: $MAIN_UUID)"
+
+          # ── 安装键盘扩展 Provisioning Profile ──────────────────────────────
+          echo "$PROFILE_KEYBOARD_BASE64" | base64 --decode > profile_keyboard.mobileprovision
+          KEYBOARD_UUID=$(security cms -D -i profile_keyboard.mobileprovision | plutil -extract UUID raw -)
+          KEYBOARD_NAME=$(security cms -D -i profile_keyboard.mobileprovision | plutil -extract Name raw -)
+          cp profile_keyboard.mobileprovision \
+            ~/Library/MobileDevice/Provisioning\ Profiles/${KEYBOARD_UUID}.mobileprovision
+          echo "键盘扩展 Profile: $KEYBOARD_NAME (UUID: $KEYBOARD_UUID)"
+
+          # ── 获取证书签名身份（SHA-1）────────────────────────────────────────
+          CERT_IDENTITY=$(
+            security find-identity -v -p codesigning build.keychain \
+            | grep -E "Apple Distribution|iPhone Distribution" \
+            | head -1 | awk '{print $2}'
+          )
+          if [ -z "$CERT_IDENTITY" ]; then
+            echo "❌ 未找到有效的 Distribution 证书"
+            security find-identity -v build.keychain
+            exit 1
+          fi
+          echo "证书 Identity: $CERT_IDENTITY"
+
+          # ── 写入 GITHUB_ENV ─────────────────────────────────────────────────
+          echo "MAIN_PROFILE_NAME=$MAIN_NAME"         >> $GITHUB_ENV
+          echo "KEYBOARD_PROFILE_NAME=$KEYBOARD_NAME" >> $GITHUB_ENV
+          echo "CERT_IDENTITY=$CERT_IDENTITY"         >> $GITHUB_ENV
+
+      # 归档阶段不签名，签名在 exportArchive 统一完成。
+      # 这样可以为不同 target（主 App / 键盘扩展）指定不同 profile。
+      - name: Archive (unsigned)
+        working-directory: ${{ env.HAMSTER_DIR }}
+        run: |
+          xcodebuild archive \
+            -project "${{ env.PROJECT }}" \
+            -scheme  "${{ env.SCHEME }}" \
             -configuration Release \
             -sdk iphoneos \
-            -derivedDataPath build-release \
-            -archivePath build-release/WebViewApp.xcarchive \
-            -allowProvisioningUpdates \
-            CODE_SIGN_STYLE=Manual \
-            DEVELOPMENT_TEAM="${{ secrets.IOS_TEAM_ID }}" \
-            CODE_SIGN_IDENTITY="${CERT_IDENTITY}" \
-            PROVISIONING_PROFILE_SPECIFIER="${PROFILE_NAME}" \
-            archive
-          
-          # 导出IPA
+            -arch arm64 \
+            -archivePath Hamster.xcarchive \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Generate exportOptions.plist
+        working-directory: ${{ env.HAMSTER_DIR }}
+        run: |
+          cat > exportOptions.plist << 'EXPORT_EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>EXPORT_METHOD_PLACEHOLDER</string>
+              <key>teamID</key>
+              <string>TEAM_ID_PLACEHOLDER</string>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>signingCertificate</key>
+              <string>Apple Distribution</string>
+              <key>provisioningProfiles</key>
+              <dict>
+                  <key>BUNDLE_ID_MAIN_PLACEHOLDER</key>
+                  <string>MAIN_PROFILE_PLACEHOLDER</string>
+                  <key>BUNDLE_ID_KEYBOARD_PLACEHOLDER</key>
+                  <string>KEYBOARD_PROFILE_PLACEHOLDER</string>
+              </dict>
+          </dict>
+          </plist>
+          EXPORT_EOF
+
+          sed -i'' \
+            -e "s|EXPORT_METHOD_PLACEHOLDER|${{ secrets.IOS_EXPORT_METHOD }}|g" \
+            -e "s|TEAM_ID_PLACEHOLDER|${{ secrets.IOS_TEAM_ID }}|g" \
+            -e "s|BUNDLE_ID_MAIN_PLACEHOLDER|${{ env.BUNDLE_ID_MAIN }}|g" \
+            -e "s|MAIN_PROFILE_PLACEHOLDER|$MAIN_PROFILE_NAME|g" \
+            -e "s|BUNDLE_ID_KEYBOARD_PLACEHOLDER|${{ env.BUNDLE_ID_KEYBOARD }}|g" \
+            -e "s|KEYBOARD_PROFILE_PLACEHOLDER|$KEYBOARD_PROFILE_NAME|g" \
+            exportOptions.plist
+
+          echo "── exportOptions.plist ──"
+          cat exportOptions.plist
+
+      - name: Export IPA
+        working-directory: ${{ env.HAMSTER_DIR }}
+        run: |
           xcodebuild -exportArchive \
-            -archivePath build-release/WebViewApp.xcarchive \
-            -exportPath build-release/output \
-            -exportOptionsPlist exportOptions.plist \
-            -allowProvisioningUpdates
+            -archivePath Hamster.xcarchive \
+            -exportPath  Hamster-Release \
+            -exportOptionsPlist exportOptions.plist
+          echo "── 导出产物 ──"
+          ls -lh Hamster-Release/
 
-      - name: Generate App Screenshots
-        if: needs.prepare.outputs.build_ios == 'true'
-        run: |
-          # 读取配置
-          APP_NAME=$(grep 'appName=' assets/build.app | cut -d'=' -f2)
-          CONFIG_FILE="assets/$APP_NAME/app.cfg"
-          ENABLE_SCREENSHOT=$(grep '^enableScreenshotGeneration=' $CONFIG_FILE | cut -d'=' -f2 | tr '[:upper:]' '[:lower:]')
-          
-          if [ "$ENABLE_SCREENSHOT" = "true" ]; then
-            echo "📸 生成 App Store 截图..."
-            python3 scripts/generate_app_screenshots.py ${{ github.workspace }}
-          else
-            echo "ℹ️  截图生成已禁用 (enableScreenshotGeneration=false)"
-          fi
-        continue-on-error: true
+      # ── 打包 xcarchive（可在 Xcode Organizer 中重新导出或 resign）─────────────
+      - name: Package xcarchive
+        working-directory: ${{ env.HAMSTER_DIR }}
+        run: tar -acf Hamster.xcarchive.tgz Hamster.xcarchive
 
-      - name: Setup App Store Connect API Key
-        if: needs.prepare.outputs.build_ios == 'true'
-        run: |
-          # 创建私钥目录
-          mkdir -p ~/.appstoreconnect/private_keys
-          
-          # 解码 API 密钥并保存到正确的位置和文件名
-          echo "${{ secrets.APP_STORE_API_KEY_BASE64 }}" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_API_KEY_ID }}.p8
-          
-          # 设置文件权限
-          chmod 600 ~/.appstoreconnect/private_keys/AuthKey_${{ secrets.APP_STORE_API_KEY_ID }}.p8
-          
-          echo "✅ API 密钥已准备"
-
-      - name: Upload to TestFlight
-        if: needs.prepare.outputs.build_ios == 'true'
-        run: |
-          # 上传 IPA
-          xcrun altool --upload-app \
-            --file ios/build-release/output/WebViewApp.ipa \
-            --type ios \
-            --apiKey ${{ secrets.APP_STORE_API_KEY_ID }} \
-            --apiIssuer ${{ secrets.APP_STORE_API_ISSUER_ID }}
-
-      - name: Update App Store Connect Metadata
-        if: needs.prepare.outputs.build_ios == 'true'
-        run: |
-          # 读取配置
-          APP_NAME=$(grep 'appName=' assets/build.app | cut -d'=' -f2)
-          CONFIG_FILE="assets/$APP_NAME/app.cfg"
-          ENABLE_ASC=$(grep '^enableAppStoreConnect=' $CONFIG_FILE | cut -d'=' -f2 | tr '[:upper:]' '[:lower:]')
-          
-          if [ "$ENABLE_ASC" = "true" ]; then
-            echo "🔄 App Store Connect 元数据更新已启用"
-            echo "📝 TestFlight 上传完成，现在更新应用元数据..."
-            
-            # 运行 App Store Connect 元数据更新脚本
-            # 这将更新现有应用的元数据和截图
-            python3 scripts/app_store_connect.py ${{ github.workspace }}
-          else
-            echo "ℹ️  App Store Connect 元数据更新已禁用 (enableAppStoreConnect=false)"
-            echo "提示: 如需自动更新应用元数据，请在 app.cfg 中设置 enableAppStoreConnect=true"
-          fi
-        env:
-          APP_STORE_API_KEY_ID: ${{ secrets.APP_STORE_API_KEY_ID }}
-          APP_STORE_API_ISSUER_ID: ${{ secrets.APP_STORE_API_ISSUER_ID }}
-        continue-on-error: true
-
-      # ========== Android 构建 ==========
-      - name: Set up JDK 17
-        if: needs.prepare.outputs.build_android == 'true'
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: Grant execute permission for gradlew
-        if: needs.prepare.outputs.build_android == 'true'
-        run: chmod +x android/gradlew
-        working-directory: ./
-
-      - name: Clean Android build
-        if: needs.prepare.outputs.build_android == 'true'
-        run: ./gradlew clean
-        working-directory: ./android
-
-      - name: Decode and create keystore
-        if: needs.prepare.outputs.build_android == 'true'
-        run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/${{ secrets.ANDROID_KEYSTORE_FILE || 'devdroid.jks' }}
-        working-directory: ./
-
-      - name: Build Android Release APK
-        if: needs.prepare.outputs.build_android == 'true'
-        run: ./gradlew assembleRelease
-        working-directory: ./android
-        env:
-          KEYSTORE_FILE: ${{ secrets.ANDROID_KEYSTORE_FILE || 'devdroid.jks' }}
-          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-
-      # ========== 准备发布 ==========
-      - name: Get App Info
-        id: get_app_info
-        run: |
-          # 读取应用名称
-          APP_NAME=$(grep 'appName=' assets/build.app | cut -d'=' -f2)
-          CONFIG_FILE="assets/$APP_NAME/app.cfg"
-          
-          # 读取应用显示名称
-          APP_DISPLAY_NAME=$(grep '^appDisplayName=' $CONFIG_FILE | cut -d'=' -f2)
-          
-          echo "app_display_name=$APP_DISPLAY_NAME" >> $GITHUB_OUTPUT
-          echo "应用显示名称: $APP_DISPLAY_NAME"
-      
+      # ========== 准备发布产物 ==========
       - name: Prepare release artifacts
         run: |
           mkdir -p ./artifacts
-          
-          # 读取应用名称
-          APP_NAME=$(grep 'appName=' assets/build.app | cut -d'=' -f2)
-          
-          # 处理 Android 文件
-          if [ "${{ needs.prepare.outputs.build_android }}" = "true" ]; then
-            echo "📦 准备 Android 发布文件..."
-            mkdir -p ./artifacts/android
-            
-            # 处理 Debug APK
-            if [ "${{ needs.prepare.outputs.need_debug }}" = "true" ]; then
-              find android/app/build/outputs/apk/debug -name "*.apk" -type f 2>/dev/null | while read file; do
-                base=$(basename "$file")
-                cp "$file" "./artifacts/android/WebViewApp-${{ needs.prepare.outputs.app_version }}-${base}"
-                echo "已复制: WebViewApp-${{ needs.prepare.outputs.app_version }}-${base}"
-              done
+
+          # Debug .app zip
+          if [ "${{ needs.prepare.outputs.need_debug }}" = "true" ]; then
+            if [ -f "${{ env.HAMSTER_DIR }}/Hamster-Debug-Simulator.zip" ]; then
+              cp "${{ env.HAMSTER_DIR }}/Hamster-Debug-Simulator.zip" \
+                "./artifacts/Hamster-${{ needs.prepare.outputs.app_version }}-Debug-Simulator.zip"
+              echo "已创建: Hamster-${{ needs.prepare.outputs.app_version }}-Debug-Simulator.zip"
             fi
-            
-            # 处理 Release APK
-            find android/app/build/outputs/apk/release -name "*.apk" -type f 2>/dev/null | while read file; do
-              base=$(basename "$file")
-              cp "$file" "./artifacts/android/WebViewApp-${{ needs.prepare.outputs.app_version }}-${base}"
-              echo "已复制: WebViewApp-${{ needs.prepare.outputs.app_version }}-${base}"
-            done
           fi
-          
-          # 处理 iOS 文件
-          if [ "${{ needs.prepare.outputs.build_ios }}" = "true" ]; then
-            echo "📦 准备 iOS 发布文件..."
-            mkdir -p ./artifacts/ios
-            
-            # 处理 Debug App
-            if [ "${{ needs.prepare.outputs.need_debug }}" = "true" ]; then
-              if [ -d "ios/build-debug/Build/Products/Debug-iphonesimulator" ]; then
-                find ios/build-debug/Build/Products/Debug-iphonesimulator -name "*.app" -type d 2>/dev/null | while read app; do
-                  cd "$(dirname "$app")"
-                  zip -r "${{ github.workspace }}/artifacts/ios/WebViewApp-${{ needs.prepare.outputs.app_version }}-Debug.zip" "$(basename "$app")"
-                  cd "${{ github.workspace }}"
-                  echo "已创建: WebViewApp-${{ needs.prepare.outputs.app_version }}-Debug.zip"
-                done
-              fi
-            fi
-            
-            # 处理 Release IPA
-            find ios/build-release/output -name "*.ipa" -type f 2>/dev/null | while read file; do
-              cp "$file" "./artifacts/ios/WebViewApp-${{ needs.prepare.outputs.app_version }}.ipa"
-              echo "已复制: WebViewApp-${{ needs.prepare.outputs.app_version }}.ipa"
-            done
+
+          # Release IPA
+          find "${{ env.HAMSTER_DIR }}/Hamster-Release" -name "*.ipa" -type f 2>/dev/null | while read file; do
+            cp "$file" "./artifacts/Hamster-${{ needs.prepare.outputs.app_version }}.ipa"
+            echo "已复制: Hamster-${{ needs.prepare.outputs.app_version }}.ipa"
+          done
+
+          # xcarchive
+          if [ -f "${{ env.HAMSTER_DIR }}/Hamster.xcarchive.tgz" ]; then
+            cp "${{ env.HAMSTER_DIR }}/Hamster.xcarchive.tgz" \
+              "./artifacts/Hamster-${{ needs.prepare.outputs.app_version }}.xcarchive.tgz"
+            echo "已复制: Hamster-${{ needs.prepare.outputs.app_version }}.xcarchive.tgz"
           fi
-          
-          # 处理截图
-          if [ -d "screenshots/$APP_NAME" ]; then
-            echo "📸 准备截图..."
-            cd screenshots && zip -r "${{ github.workspace }}/artifacts/Screenshots-${{ needs.prepare.outputs.app_version }}.zip" "$APP_NAME"
-            cd "${{ github.workspace }}"
-            echo "已创建: Screenshots-${{ needs.prepare.outputs.app_version }}.zip"
-          fi
-          
+
           echo "=== 发布文件列表 ==="
           ls -lR ./artifacts/
 
+      # ========== GitHub Release ==========
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           token: ${{ secrets.TOKEN }}
           tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
+          name: "${{ needs.prepare.outputs.app_display_name }} ${{ github.ref_name }}"
           body: |
-            # 应用发布 / App Release
-            
-            **应用名称 / App Name**: ${{ steps.get_app_info.outputs.app_display_name }}
+            ## ${{ needs.prepare.outputs.app_display_name }} ${{ github.ref_name }}
+
             **版本号 / Version**: ${{ needs.prepare.outputs.app_version }}
+
+            ### 📦 安装方式
+            | 导出方式 | 安装途径 |
+            |----------|---------|
+            | `app-store` | TestFlight 内测 / App Store 正式发布 |
+            | `ad-hoc`    | AltStore / Sideloadly 等工具侧载 |
+            | `development` | Xcode 直接安装到已注册的开发设备 |
+
+            ### 📁 文件说明
+            | 文件 | 说明 |
+            |------|------|
+            | `Hamster-*.ipa` | iOS 安装包 |
+            | `Hamster-*-Debug-Simulator.zip` | 模拟器 Debug 包（仅开启 debug 时生成） |
+            | `Hamster-*.xcarchive.tgz` | Xcode 归档，可重新导出或 resign |
+
+            ### 📝 变更内容
+            详见 [Commits](https://github.com/${{ github.repository }}/commits/${{ github.ref_name }})
           draft: false
           prerelease: false
           files: |
-            ./artifacts/android/*.apk
-            ./artifacts/ios/*.ipa
-            ./artifacts/ios/*.zip
-            ./artifacts/Screenshots-*.zip
+            ./artifacts/Hamster-*.ipa
+            ./artifacts/Hamster-*-Debug-Simulator.zip
+            ./artifacts/Hamster-*.xcarchive.tgz
           fail_on_unmatched_files: false
