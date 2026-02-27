@@ -73,8 +73,10 @@ jobs:
   #    IOS_CERTIFICATE_BASE64                   发布证书 .p12 的 base64 编码
   #    IOS_CERTIFICATE_PASSWORD                 .p12 证书的保护密码
   #    IOS_PROVISIONING_PROFILE_BASE64          主 App 描述文件 .mobileprovision 的 base64
-  #    IOS_KEYBOARD_PROVISIONING_PROFILE_BASE64 键盘扩展描述文件 .mobileprovision 的 base64
   #    TOKEN                                    GitHub Token（用于 Release）
+  #
+  #  可选 GitHub Secrets（未设置则跳过）:
+  #    IOS_KEYBOARD_PROVISIONING_PROFILE_BASE64 键盘扩展描述文件 .mobileprovision 的 base64
   #
   #  可选 GitHub Secrets（优先级高于配置文件，未设置则回退到 app.cfg）:
   #    IOS_BUNDLE_ID            → Bundle ID（主 App），回退: appId
@@ -126,6 +128,28 @@ jobs:
           echo "Bundle ID Keyboard: $BUNDLE_ID_KEYBOARD (source: $([ -n "$SECRET_BUNDLE_ID_KEYBOARD" ] && echo 'secrets' || echo 'derived'))"
           echo "Team ID: $TEAM_ID (source: $([ -n "$SECRET_TEAM_ID" ] && echo 'secrets' || echo 'app.cfg'))"
           echo "Export Method: $EXPORT_METHOD (source: $([ -n "$SECRET_EXPORT_METHOD" ] && echo 'secrets' || echo 'app.cfg'))"
+
+      # ── 替换 Xcode 工程中的 Bundle ID ──────────────────────────────────────────
+      # Hamster 工程默认为 dev.fuxiao.app.Hamster，替换为配置文件/Secrets 中的值
+      - name: Update Xcode project Bundle IDs
+        working-directory: ${{ env.HAMSTER_DIR }}
+        run: |
+          PBXPROJ="Hamster.xcodeproj/project.pbxproj"
+
+          echo "替换前的 Bundle ID:"
+          grep 'PRODUCT_BUNDLE_IDENTIFIER' "$PBXPROJ"
+
+          # 先替换长字符串（键盘扩展），再替换短字符串（主 App），避免部分匹配
+          sed -i'' \
+            -e "s|dev2\.fuxiao\.app\.Hamster2\.HamsterKeyboard|${BUNDLE_ID_KEYBOARD}|g" \
+            -e "s|dev\.fuxiao\.app\.Hamster\.HamsterKeyboard|${BUNDLE_ID_KEYBOARD}|g" \
+            -e "s|dev2\.fuxiao\.app\.Hamster2|${BUNDLE_ID}|g" \
+            -e "s|dev\.fuxiao\.app\.Hamster|${BUNDLE_ID}|g" \
+            "$PBXPROJ"
+
+          echo ""
+          echo "替换后的 Bundle ID:"
+          grep 'PRODUCT_BUNDLE_IDENTIFIER' "$PBXPROJ"
 
       # ── 校验 Frameworks ────────────────────────────────────────────────────────
       - name: Verify Frameworks
@@ -218,13 +242,24 @@ jobs:
             ~/Library/MobileDevice/Provisioning\ Profiles/${MAIN_UUID}.mobileprovision
           echo "主 App Profile: $MAIN_NAME (UUID: $MAIN_UUID)"
 
-          # ── 安装键盘扩展 Provisioning Profile ──────────────────────────────
-          echo "$PROFILE_KEYBOARD_BASE64" | base64 --decode > profile_keyboard.mobileprovision
-          KEYBOARD_UUID=$(security cms -D -i profile_keyboard.mobileprovision | plutil -extract UUID raw -)
-          KEYBOARD_NAME=$(security cms -D -i profile_keyboard.mobileprovision | plutil -extract Name raw -)
-          cp profile_keyboard.mobileprovision \
-            ~/Library/MobileDevice/Provisioning\ Profiles/${KEYBOARD_UUID}.mobileprovision
-          echo "键盘扩展 Profile: $KEYBOARD_NAME (UUID: $KEYBOARD_UUID)"
+          # ── 安装键盘扩展 Provisioning Profile ────────────────────────────────
+          # 未单独配置时复用主 App Profile（适用于通配符 Profile，如 com.xlab.*）
+          if [ -n "$PROFILE_KEYBOARD_BASE64" ]; then
+            echo "$PROFILE_KEYBOARD_BASE64" | base64 --decode > profile_keyboard.mobileprovision
+            if security cms -D -i profile_keyboard.mobileprovision > /dev/null 2>&1; then
+              KEYBOARD_UUID=$(security cms -D -i profile_keyboard.mobileprovision | plutil -extract UUID raw -)
+              KEYBOARD_NAME=$(security cms -D -i profile_keyboard.mobileprovision | plutil -extract Name raw -)
+              cp profile_keyboard.mobileprovision \
+                ~/Library/MobileDevice/Provisioning\ Profiles/${KEYBOARD_UUID}.mobileprovision
+              echo "键盘扩展 Profile（独立）: $KEYBOARD_NAME (UUID: $KEYBOARD_UUID)"
+            else
+              echo "⚠️  键盘扩展 Profile 解码失败，回退使用主 App Profile"
+              KEYBOARD_NAME="$MAIN_NAME"
+            fi
+          else
+            KEYBOARD_NAME="$MAIN_NAME"
+            echo "ℹ️  键盘扩展复用主 App Profile: $KEYBOARD_NAME"
+          fi
 
           # ── 获取证书签名身份（SHA-1）────────────────────────────────────────
           CERT_IDENTITY=$(
@@ -278,12 +313,15 @@ jobs:
               <dict>
                   <key>${BUNDLE_ID}</key>
                   <string>${MAIN_PROFILE_NAME}</string>
-                  <key>${BUNDLE_ID_KEYBOARD}</key>
-                  <string>${KEYBOARD_PROFILE_NAME}</string>
               </dict>
           </dict>
           </plist>
           EOF
+
+          # 添加键盘扩展 Bundle ID → Profile 映射
+          /usr/libexec/PlistBuddy -c \
+            "Add :provisioningProfiles:${BUNDLE_ID_KEYBOARD} string ${KEYBOARD_PROFILE_NAME}" \
+            exportOptions.plist
 
           echo "── exportOptions.plist ──"
           cat exportOptions.plist
