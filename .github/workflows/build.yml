@@ -130,26 +130,12 @@ jobs:
           echo "Export Method: $EXPORT_METHOD (source: $([ -n "$SECRET_EXPORT_METHOD" ] && echo 'secrets' || echo 'app.cfg'))"
 
       # ── 替换 Xcode 工程中的 Bundle ID ──────────────────────────────────────────
-      # Hamster 工程默认为 dev.fuxiao.app.Hamster，替换为配置文件/Secrets 中的值
       - name: Update Xcode project Bundle IDs
-        working-directory: ${{ env.HAMSTER_DIR }}
         run: |
-          PBXPROJ="Hamster.xcodeproj/project.pbxproj"
-
-          echo "替换前的 Bundle ID:"
-          grep 'PRODUCT_BUNDLE_IDENTIFIER' "$PBXPROJ"
-
-          # 先替换长字符串（键盘扩展），再替换短字符串（主 App），避免部分匹配
-          sed -i'' \
-            -e "s|dev2\.fuxiao\.app\.Hamster2\.HamsterKeyboard|${BUNDLE_ID_KEYBOARD}|g" \
-            -e "s|dev\.fuxiao\.app\.Hamster\.HamsterKeyboard|${BUNDLE_ID_KEYBOARD}|g" \
-            -e "s|dev2\.fuxiao\.app\.Hamster2|${BUNDLE_ID}|g" \
-            -e "s|dev\.fuxiao\.app\.Hamster|${BUNDLE_ID}|g" \
-            "$PBXPROJ"
-
-          echo ""
-          echo "替换后的 Bundle ID:"
-          grep 'PRODUCT_BUNDLE_IDENTIFIER' "$PBXPROJ"
+          python3 scripts/update_bundle_id.py \
+            "${{ env.HAMSTER_DIR }}/Hamster.xcodeproj/project.pbxproj" \
+            "$BUNDLE_ID" \
+            "$BUNDLE_ID_KEYBOARD"
 
       # ── 校验 Frameworks ────────────────────────────────────────────────────────
       - name: Verify Frameworks
