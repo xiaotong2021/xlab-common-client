@@ -10,13 +10,13 @@ import Foundation
 /// Hamster 应用常量
 public enum HamsterConstants {
   /// AppGroup ID
-  public static let appGroupName = "group.com.xlab.aiime2"
+  public static let appGroupName = "group.com.xlab.aiime"
 
   /// iCloud ID
   public static let iCloudID = "iCloud.com.xlab.aiime"
 
   /// keyboard Bundle ID
-  public static let keyboardBundleID = "com.xlab.aiime2.HamsterKeyboard"
+  public static let keyboardBundleID = "com.xlab.aiime.HamsterKeyboard"
 
   /// 跳转至系统添加键盘URL
   public static let addKeyboardPath = "app-settings:root=General&path=Keyboard/KEYBOARDS"
