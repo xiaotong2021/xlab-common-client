@@ -74,3 +74,5 @@ secrets/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+/ios/Hamster iOS输入法剖析.md
+/ios/build-debug/
