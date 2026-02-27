@@ -252,10 +252,10 @@ CODE_PATCHES = [
             '    Logger.statistics.info("[SharedUser] init: appGroupName=\\(HamsterConstants.appGroupName)")\n'
             '    Logger.statistics.info("[SharedUser] init: containerURL=\\(testGroupURL?.path ?? "nil")")\n'
             '    Logger.statistics.info("[SharedUser] init: sharedDefaults suiteName=\\(HamsterConstants.appGroupName)")\n'
-            '    if let testData = sharedDefaults.data(forKey: userDefaultsKey) {\n'
+            '    if let testData = self.sharedDefaults.data(forKey: self.userDefaultsKey) {\n'
             '      Logger.statistics.info("[SharedUser] init: 发现已存储的用户数据, size=\\(testData.count) bytes")\n'
             '    } else {\n'
-            '      Logger.statistics.warning("[SharedUser] init: 未找到用户数据 (key=\\(userDefaultsKey))")\n'
+            '      Logger.statistics.warning("[SharedUser] init: 未找到用户数据 (key=\\(self.userDefaultsKey))")\n'
             '    }\n'
             '  }'
         ),
