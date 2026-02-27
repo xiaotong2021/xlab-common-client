@@ -113,7 +113,9 @@ class LoadingViewController: UIViewController {
         // 检查登录状态，决定跳转目标页面
         let targetVC: UIViewController
         if AuthManager.shared.isLoggedIn {
-            targetVC = MainViewController()
+            // 登录后进入功能选择列表页（包裹在 NavigationController 中）
+            let homeVC = HomeListViewController()
+            targetVC = UINavigationController(rootViewController: homeVC)
         } else {
             targetVC = LoginViewController()
         }

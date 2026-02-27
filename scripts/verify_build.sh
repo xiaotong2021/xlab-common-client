@@ -144,5 +144,58 @@ else
 fi
 
 echo ""
+
+# 检查 WebViewApp.entitlements 占位符是否已替换
+echo "5. Checking WebViewApp entitlements..."
+ENTITLEMENTS="ios/WebViewApp/WebViewApp.entitlements"
+
+if [ -f "$ENTITLEMENTS" ]; then
+    echo "✅ WebViewApp.entitlements found"
+    
+    if grep -q '__BUNDLE_ID__' "$ENTITLEMENTS"; then
+        echo "   ❌ Contains unreplaced placeholder: __BUNDLE_ID__"
+    else
+        APP_GROUP=$(grep -A1 'application-groups' "$ENTITLEMENTS" | grep '<string>' | head -1 | sed 's/.*<string>//;s/<\/string>.*//' | tr -d '\t')
+        echo "   ✅ App Group: $APP_GROUP"
+        
+        ICLOUD=$(grep -A1 'icloud-container-identifiers' "$ENTITLEMENTS" | grep '<string>' | head -1 | sed 's/.*<string>//;s/<\/string>.*//' | tr -d '\t')
+        echo "   ✅ iCloud Container: $ICLOUD"
+    fi
+else
+    echo "❌ WebViewApp.entitlements not found"
+fi
+
+echo ""
+
+# 检查 Hamster 包名同步
+echo "6. Checking Hamster bundle ID sync..."
+HAMSTER_DIR="Hamster"
+
+if [ -d "$HAMSTER_DIR" ]; then
+    HAMSTER_ENTITLEMENTS="$HAMSTER_DIR/Hamster/Hamster.entitlements"
+    KEYBOARD_ENTITLEMENTS="$HAMSTER_DIR/HamsterKeyboard/HamsterKeyboard.entitlements"
+    
+    if [ -f "$HAMSTER_ENTITLEMENTS" ]; then
+        if grep -q 'dev.fuxiao.app' "$HAMSTER_ENTITLEMENTS"; then
+            echo "   ⚠️  Hamster.entitlements still uses original bundle ID (dev.fuxiao.app.*)"
+        else
+            HAMSTER_GROUP=$(grep -A1 'application-groups' "$HAMSTER_ENTITLEMENTS" | grep '<string>' | head -1 | sed 's/.*<string>//;s/<\/string>.*//' | tr -d '\t')
+            echo "   ✅ Hamster App Group: $HAMSTER_GROUP"
+        fi
+    fi
+    
+    if [ -f "$KEYBOARD_ENTITLEMENTS" ]; then
+        if grep -q 'dev.fuxiao.app' "$KEYBOARD_ENTITLEMENTS"; then
+            echo "   ⚠️  HamsterKeyboard.entitlements still uses original bundle ID (dev.fuxiao.app.*)"
+        else
+            KB_GROUP=$(grep -A1 'application-groups' "$KEYBOARD_ENTITLEMENTS" | grep '<string>' | head -1 | sed 's/.*<string>//;s/<\/string>.*//' | tr -d '\t')
+            echo "   ✅ HamsterKeyboard App Group: $KB_GROUP"
+        fi
+    fi
+else
+    echo "   ⚠️  Hamster directory not found, skipping check"
+fi
+
+echo ""
 echo "=== Verification Complete ==="
 
