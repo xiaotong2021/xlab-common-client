@@ -793,56 +793,10 @@ class ConfigBuilder:
             self.ios_dir / "WebViewApp" / "SceneDelegate.swift",
             self.ios_dir / "WebViewApp" / "LoadingViewController.swift",
             self.ios_dir / "WebViewApp" / "MainViewController.swift",
-            self.ios_dir / "WebViewApp" / "WebViewApp.entitlements",
         ]
         
         for file_path in files_to_replace:
             self.replace_file_content(file_path, replacements)
-        
-        # 同步 Hamster 子项目的 Bundle ID 和 App Group
-        self._configure_hamster(replacements.get('__BUNDLE_ID__', ''))
-    
-    def _configure_hamster(self, bundle_id):
-        """将 Hamster 子项目中的包名、App Group、iCloud 容器同步为 WebViewApp 的 Bundle ID"""
-        if not bundle_id:
-            print("\n=== Skipping Hamster configuration (bundle_id is empty) ===")
-            return
-        
-        print("\n=== Configuring Hamster ===")
-        
-        hamster_dir = self.workspace_root / "Hamster"
-        if not hamster_dir.exists():
-            print(f"Warning: Hamster directory not found at {hamster_dir}, skipping.")
-            return
-        
-        # 注意：替换顺序很重要，HamsterKeyboard 的 Bundle ID 包含主 App 的 Bundle ID 作为前缀，
-        # 因此必须先替换完整的 HamsterKeyboard Bundle ID，再替换主 App Bundle ID。
-        hamster_replacements = {
-            # Release Bundle IDs
-            'dev.fuxiao.app.Hamster.HamsterKeyboard': f'{bundle_id}.HamsterKeyboard',
-            'dev.fuxiao.app.Hamster': bundle_id,
-            # Debug Bundle IDs
-            'dev2.fuxiao.app.Hamster2.HamsterKeyboard': f'{bundle_id}.HamsterKeyboard',
-            'dev2.fuxiao.app.Hamster2': bundle_id,
-            # App Groups
-            'group.dev.fuxiao.app.Hamster': f'group.{bundle_id}',
-            'group.dev2.fuxiao.app.Hamster2': f'group.{bundle_id}',
-            # iCloud containers
-            'iCloud.dev.fuxiao.app.hamsterapp': f'iCloud.{bundle_id}',
-        }
-        
-        hamster_files = [
-            hamster_dir / "Hamster.xcodeproj" / "project.pbxproj",
-            hamster_dir / "Hamster" / "Hamster.entitlements",
-            hamster_dir / "Hamster" / "HamsterDebug.entitlements",
-            hamster_dir / "Hamster" / "Info.plist",
-            hamster_dir / "HamsterKeyboard" / "HamsterKeyboard.entitlements",
-            hamster_dir / "HamsterKeyboard" / "HamsterKeyboardDebug.entitlements",
-            hamster_dir / "HamsterKeyboard" / "Info.plist",
-        ]
-        
-        for file_path in hamster_files:
-            self.replace_file_content(file_path, hamster_replacements)
     
     def build(self):
         """执行构建配置"""

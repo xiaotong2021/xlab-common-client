@@ -431,12 +431,10 @@ class LoginViewController: UIViewController {
     }
 
     private func navigateToMain() {
-        // 登录成功后进入功能选择列表页（包裹在 NavigationController 中）
-        let homeVC = HomeListViewController()
-        let navVC = UINavigationController(rootViewController: homeVC)
+        let mainVC = MainViewController()
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
            let window = windowScene.windows.first {
-            window.rootViewController = navVC
+            window.rootViewController = mainVC
             UIView.transition(with: window, duration: 0.4, options: .transitionCrossDissolve, animations: nil)
         }
     }

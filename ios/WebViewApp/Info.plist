@@ -65,57 +65,6 @@
 	</dict>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
-	<!-- 文件共享：允许用户通过 iTunes/Finder 导入 Rime 配置包 -->
-	<key>UIFileSharingEnabled</key>
-	<true/>
-	<!-- 持久 WiFi：Hamster 内置文件服务器需要 -->
-	<key>UIRequiresPersistentWiFi</key>
-	<true/>
-	<!-- Rime 引擎版本 -->
-	<key>rimeVersion</key>
-	<string>1.9.0</string>
-	<!-- URL Scheme：支持快捷指令及外部跳转 -->
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>hamster</string>
-			</array>
-		</dict>
-	</array>
-	<!-- 支持打开 zip 文件：用于导入 Rime 配置包 -->
-	<key>CFBundleDocumentTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>ZIP Archive</string>
-			<key>CFBundleTypeRole</key>
-			<string>Viewer</string>
-			<key>LSHandlerRank</key>
-			<string>Default</string>
-			<key>LSItemContentTypes</key>
-			<array>
-				<string>public.zip-archive</string>
-				<string>com.pkware.zip-archive</string>
-			</array>
-		</dict>
-	</array>
-	<!-- iCloud 容器：同步 Rime 配置文件（Bundle ID 由 build_config.py 替换） -->
-	<key>NSUbiquitousContainers</key>
-	<dict>
-		<key>iCloud.__BUNDLE_ID__</key>
-		<dict>
-			<key>NSUbiquitousContainerIsDocumentScopePublic</key>
-			<true/>
-			<key>NSUbiquitousContainerName</key>
-			<string>Hamster</string>
-			<key>NSUbiquitousContainerSupportedFolderLevels</key>
-			<string>Any</string>
-		</dict>
-	</dict>
 	<!-- 动态权限配置（由build_config.py根据app.cfg自动生成） -->
 	<!-- __PERMISSION_CAMERA__ -->
 	<!-- __PERMISSION_PHOTO_LIBRARY__ -->

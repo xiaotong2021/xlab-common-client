@@ -19,27 +19,7 @@
 		8D1107530486CEB800E470B3 /* LoginViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1107540486CEB800E470B4 /* LoginViewController.swift */; };
 		8D1107550486CEB800E470B5 /* AIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1107560486CEB800E470B6 /* AIService.swift */; };
 		8D1107570486CEB800E470B7 /* AIChatIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1107580486CEB800E470B8 /* AIChatIntent.swift */; };
-		8D11075A0486CEB800E470BA /* HomeListViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D11075B0486CEB800E470BB /* HomeListViewController.swift */; };
-		8D11075C0486CEB800E470BC /* ProfileViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D11075D0486CEB800E470BD /* ProfileViewController.swift */; };
-		EAA10007000000000000EA07 /* HamsterKeyboard.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = EAA10004000000000000EA04 /* HamsterKeyboard.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
-
-/* Begin PBXContainerItemProxy section */
-		EAA10003000000000000EA03 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = EAA10001000000000000EA01 /* Hamster.xcodeproj */;
-			proxyType = 2;
-			remoteGlobalIDString = C03E803C296D53650083E53A;
-			remoteInfo = HamsterKeyboard;
-		};
-		EAA10005000000000000EA05 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = EAA10001000000000000EA01 /* Hamster.xcodeproj */;
-			proxyType = 1;
-			remoteGlobalIDString = C03E803B296D53650083E53A;
-			remoteInfo = HamsterKeyboard;
-		};
-/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		8D1107320486CEB800E47091 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -57,24 +37,7 @@
 		8D1107560486CEB800E470B6 /* AIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIService.swift; sourceTree = "<group>"; };
 		8D1107580486CEB800E470B8 /* AIChatIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatIntent.swift; sourceTree = "<group>"; };
 		8D1107590486CEB800E470B9 /* WebViewApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WebViewApp.entitlements; sourceTree = "<group>"; };
-		8D11075B0486CEB800E470BB /* HomeListViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeListViewController.swift; sourceTree = "<group>"; };
-		8D11075D0486CEB800E470BD /* ProfileViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileViewController.swift; sourceTree = "<group>"; };
-		EAA10001000000000000EA01 /* Hamster.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = Hamster.xcodeproj; path = "../Hamster/Hamster.xcodeproj"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
-
-/* Begin PBXCopyFilesBuildPhase section */
-		EAA10008000000000000EA08 /* Embed App Extensions */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			files = (
-				EAA10007000000000000EA07 /* HamsterKeyboard.appex in Embed App Extensions */,
-			);
-			name = "Embed App Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		8D1107410486CEB800E470A0 /* Frameworks */ = {
@@ -92,16 +55,7 @@
 			children = (
 				8D1107430486CEB800E470A2 /* WebViewApp */,
 				8D1107440486CEB800E470A3 /* Products */,
-				EAA10001000000000000EA01 /* Hamster.xcodeproj */,
 			);
-			sourceTree = "<group>";
-		};
-		EAA10002000000000000EA02 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				EAA10004000000000000EA04 /* HamsterKeyboard.appex */,
-			);
-			name = Products;
 			sourceTree = "<group>";
 		};
 		8D1107430486CEB800E470A2 /* WebViewApp */ = {
@@ -115,10 +69,8 @@
 				8D1107520486CEB800E470B2 /* AuthManager.swift */,
 				8D1107540486CEB800E470B4 /* LoginViewController.swift */,
 				8D1107560486CEB800E470B6 /* AIService.swift */,
-		8D1107580486CEB800E470B8 /* AIChatIntent.swift */,
-		8D11075B0486CEB800E470BB /* HomeListViewController.swift */,
-		8D11075D0486CEB800E470BD /* ProfileViewController.swift */,
-		8D1107590486CEB800E470B9 /* WebViewApp.entitlements */,
+			8D1107580486CEB800E470B8 /* AIChatIntent.swift */,
+			8D1107590486CEB800E470B9 /* WebViewApp.entitlements */,
 				8D11073C0486CEB800E4709B /* Assets.xcassets */,
 				8D11073E0486CEB800E4709D /* LaunchScreen.storyboard */,
 				8D11074F0486CEB800E470AF /* webapp */,
@@ -137,24 +89,6 @@
 		};
 /* End PBXGroup section */
 
-/* Begin PBXReferenceProxy section */
-		EAA10004000000000000EA04 /* HamsterKeyboard.appex */ = {
-			isa = PBXReferenceProxy;
-			fileType = "wrapper.app-extension";
-			path = HamsterKeyboard.appex;
-			remoteRef = EAA10003000000000000EA03 /* PBXContainerItemProxy */;
-			sourceTree = BUILT_PRODUCTS_DIR;
-		};
-/* End PBXReferenceProxy section */
-
-/* Begin PBXTargetDependency section */
-		EAA10006000000000000EA06 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			name = HamsterKeyboard;
-			targetProxy = EAA10005000000000000EA05 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
-
 /* Begin PBXNativeTarget section */
 		8D1107450486CEB800E470A4 /* WebViewApp */ = {
 			isa = PBXNativeTarget;
@@ -163,12 +97,10 @@
 				8D1107470486CEB800E470A6 /* Sources */,
 				8D1107410486CEB800E470A0 /* Frameworks */,
 				8D1107480486CEB800E470A7 /* Resources */,
-				EAA10008000000000000EA08 /* Embed App Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
-				EAA10006000000000000EA06 /* PBXTargetDependency */,
 			);
 			name = WebViewApp;
 			productName = WebViewApp;
@@ -201,12 +133,6 @@
 			mainGroup = 8D1107420486CEB800E470A1;
 			productRefGroup = 8D1107440486CEB800E470A3 /* Products */;
 			projectDirPath = "";
-			projectReferences = (
-				{
-					ProductGroup = EAA10002000000000000EA02 /* Products */;
-					ProjectRef = EAA10001000000000000EA01 /* Hamster.xcodeproj */;
-				},
-			);
 			projectRoot = "";
 			targets = (
 				8D1107450486CEB800E470A4 /* WebViewApp */,
@@ -241,8 +167,6 @@
 				8D1107530486CEB800E470B3 /* LoginViewController.swift in Sources */,
 				8D1107550486CEB800E470B5 /* AIService.swift in Sources */,
 				8D1107570486CEB800E470B7 /* AIChatIntent.swift in Sources */,
-				8D11075A0486CEB800E470BA /* HomeListViewController.swift in Sources */,
-				8D11075C0486CEB800E470BC /* ProfileViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
