@@ -111,12 +111,12 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate, UISceneDelegate {
 #### 应用配置文件
 
 1. **`Info.plist`**：应用信息配置文件
-   - Bundle ID：`dev.fuxiao.app.Hamster`
+   - Bundle ID：`com.xlab.aiime`
    - 支持的 URL Schemes
    - 权限声明
 
 2. **`Hamster.entitlements`** 和 **`HamsterDebug.entitlements`**：
-   - App Groups：`group.dev.fuxiao.app.Hamster`（用于主应用和键盘扩展共享数据）
+   - App Groups：`group.com.xlab.aiime`（用于主应用和键盘扩展共享数据）
    - iCloud 容器权限
    - 其他系统权限声明
 
@@ -163,8 +163,8 @@ public class HamsterKeyboardInputViewController: KeyboardInputViewController {}
 **关键常量分析**：
 ```swift
 public enum HamsterConstants {
-    public static let appGroupName = "group.dev.fuxiao.app.Hamster"
-    public static let keyboardBundleID = "dev.fuxiao.app.Hamster.HamsterKeyboard"
+    public static let appGroupName = "group.com.xlab.aiime"
+    public static let keyboardBundleID = "com.xlab.aiime.HamsterKeyboard"
     public static let rimeUserPathName = "Rime"
     public static let inputSchemaZipFile = "SharedSupport.zip"
 }
@@ -519,7 +519,7 @@ iOS 键盘扩展运行在独立的进程中，与主应用分离：
 ### 数据共享机制
 
 **App Groups**：
-- ID：`group.dev.fuxiao.app.Hamster`
+- ID：`group.com.xlab.aiime`
 - 用途：主应用和键盘扩展共享数据
 - 共享内容：配置文件、输入方案、用户数据
 
@@ -527,7 +527,7 @@ iOS 键盘扩展运行在独立的进程中，与主应用分离：
 ```swift
 // HamsterConstants.swift
 public enum HamsterConstants {
-    public static let appGroupName = "group.dev.fuxiao.app.Hamster"
+    public static let appGroupName = "group.com.xlab.aiime"
     public static let rimeUserPathName = "Rime"
     public static let rimeSharedSupportPathName = "SharedSupport"
 }
@@ -739,11 +739,11 @@ Resources/
 
 **主要 Target**：
 1. **Hamster**：主应用
-   - Bundle ID：`dev.fuxiao.app.Hamster`
+   - Bundle ID：`com.xlab.aiime`
    - 部署目标：iOS 15.0+
 
 2. **HamsterKeyboard**：键盘扩展
-   - Bundle ID：`dev.fuxiao.app.Hamster.HamsterKeyboard`
+   - Bundle ID：`com.xlab.aiime.HamsterKeyboard`
    - App Groups：启用
    - 键盘扩展权限：启用
 
@@ -971,17 +971,17 @@ public class KeyboardButtonContentView: NibLessView {
 ```swift
 public enum HamsterConstants {
     // App Groups ID - 用于主应用和键盘扩展共享数据
-    public static let appGroupName = "group.dev.fuxiao.app.Hamster"
+    public static let appGroupName = "group.com.xlab.aiime"
     
     // 键盘扩展 Bundle ID
-    public static let keyboardBundleID = "dev.fuxiao.app.Hamster.HamsterKeyboard"
+    public static let keyboardBundleID = "com.xlab.aiime.HamsterKeyboard"
     
     // RIME 目录结构（与macOS版Squirrel保持一致）
     public static let rimeSharedSupportPathName = "SharedSupport"  // 预构建数据目录
     public static let rimeUserPathName = "Rime"                    // 用户数据目录
     
     // 应用URL Scheme
-    public static let appURL = "hamster://dev.fuxiao.app.hamster"
+    public static let appURL = "hamster://com.xlab.aiime"
     
     // 系统设置路径
     public static let addKeyboardPath = "app-settings:root=General&path=Keyboard/KEYBOARDS"
@@ -1397,13 +1397,13 @@ import commands from "./commands";      // 命令API
 **主要Target配置**：
 
 1. **Hamster Target（主应用）**：
-   - Bundle Identifier: `dev.fuxiao.app.Hamster`
+   - Bundle Identifier: `com.xlab.aiime`
    - Deployment Target: iOS 15.0+
-   - App Groups: `group.dev.fuxiao.app.Hamster`
-   - iCloud Container: `iCloud.dev.fuxiao.app.hamsterapp`
+   - App Groups: `group.com.xlab.aiime`
+   - iCloud Container: `iCloud.com.xlab.aiimeapp`
 
 2. **HamsterKeyboard Target（键盘扩展）**：
-   - Bundle Identifier: `dev.fuxiao.app.Hamster.HamsterKeyboard`
+   - Bundle Identifier: `com.xlab.aiime.HamsterKeyboard`
    - Extension Point: `com.apple.keyboard-service`
    - App Groups: 启用，与主应用共享
    - 内存限制: 受iOS系统严格限制
@@ -1574,7 +1574,7 @@ make schema
 ```swift
 // 使用Logger进行调试输出
 import OSLog
-private let logger = Logger(subsystem: "dev.fuxiao.app.Hamster", category: "Keyboard")
+private let logger = Logger(subsystem: "com.xlab.aiime", category: "Keyboard")
 
 logger.debug("键盘状态: \(keyboardContext.keyboardType)")
 logger.error("RIME引擎错误: \(error.localizedDescription)")

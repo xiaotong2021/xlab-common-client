@@ -31,7 +31,7 @@ class KeyboardToolbarView: NibLessView {
 
   /// AI按钮点击回调
   var onAIButtonTapped: (() -> Void)?
-  
+
   /// AI按钮状态
   private var isAIButtonActive: Bool = false
 
@@ -156,7 +156,7 @@ class KeyboardToolbarView: NibLessView {
     Logger.statistics.debug("KeyboardToolbarView: 激活视图约束")
 
     var constraints: [NSLayoutConstraint] = []
-    
+
     // 常用功能栏约束 - 填充整个工具栏
     constraints.append(contentsOf: [
       commonFunctionBar.topAnchor.constraint(equalTo: topAnchor),
@@ -230,7 +230,7 @@ class KeyboardToolbarView: NibLessView {
           self.candidateBarView.setStyle(self.style)
           // 将candidateBarView添加到工具栏中
           self.addSubview(self.candidateBarView)
-          
+
           // 设置candidateBarView约束，使其填充工具栏
           self.candidateBarView.translatesAutoresizingMaskIntoConstraints = false
           NSLayoutConstraint.activate([
@@ -255,14 +255,14 @@ class KeyboardToolbarView: NibLessView {
   }
 
   // MARK: - 公开方法
-  
+
   /// 处理键盘输入（供外部调用，兼容性方法）
   func handleKeyInput(_ character: String) -> Bool {
     Logger.statistics.debug("KeyboardToolbarView: 处理键盘输入: '\(character)' (兼容性方法，AI功能已移至KeyboardRootView)")
     // 由于AI功能已移至KeyboardRootView，这里只是保持兼容性
     return false
   }
-  
+
   /// 更新AI按钮状态
   func updateAIButtonState(isActive: Bool) {
     self.isAIButtonActive = isActive
@@ -306,7 +306,7 @@ class KeyboardToolbarView: NibLessView {
 
   @objc func openHamsterAppTouchUpAction() {
     iconButton.backgroundColor = style.toolbarButtonPressedBackgroundColor
-    actionHandler.handle(.release, on: .url(URL(string: "hamster://dev.fuxiao.app.hamster/main"), id: "openHamster"))
+    actionHandler.handle(.release, on: .url(URL(string: "hamster://com.xlab.aiime/main"), id: "openHamster"))
   }
 
   @objc func touchCancel() {

@@ -20,8 +20,8 @@ env:
   PROJECT:           "Hamster.xcodeproj"
   SCHEME:            "Hamster"
   # Release 配置下各 Target 的 Bundle Identifier
-  BUNDLE_ID_MAIN:     "dev.fuxiao.app.Hamster"
-  BUNDLE_ID_KEYBOARD: "dev.fuxiao.app.Hamster.HamsterKeyboard"
+  BUNDLE_ID_MAIN:     "com.xlab.aiime"
+  BUNDLE_ID_KEYBOARD: "com.xlab.aiime.HamsterKeyboard"
 
 jobs:
   # ============================================================================
