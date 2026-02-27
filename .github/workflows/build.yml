@@ -9,15 +9,13 @@ on:
       - "v*"
 
 # ──────────────────────────────────────────────────────────────────────────────
-# 全局常量（与 Xcode project.pbxproj Release 配置保持一致）
+# 全局常量
 # ──────────────────────────────────────────────────────────────────────────────
 env:
-  XCODE_VERSION:      "15.0.1"
-  PROJECT:            "Hamster.xcodeproj"
-  SCHEME:             "Hamster"
-  HAMSTER_DIR:        "Hamster"
-  BUNDLE_ID_MAIN:     "dev.fuxiao.app.Hamster"
-  BUNDLE_ID_KEYBOARD: "dev.fuxiao.app.Hamster.HamsterKeyboard"
+  XCODE_VERSION: "15.0.1"
+  PROJECT:       "Hamster.xcodeproj"
+  SCHEME:        "Hamster"
+  HAMSTER_DIR:   "Hamster"
 
 jobs:
   # ============================================================================
@@ -30,6 +28,10 @@ jobs:
       need_debug: ${{ steps.config.outputs.need_debug }}
       app_version: ${{ steps.config.outputs.app_version }}
       app_display_name: ${{ steps.config.outputs.app_display_name }}
+      bundle_id: ${{ steps.config.outputs.bundle_id }}
+      bundle_id_keyboard: ${{ steps.config.outputs.bundle_id_keyboard }}
+      team_id: ${{ steps.config.outputs.team_id }}
+      export_method: ${{ steps.config.outputs.export_method }}
 
     steps:
       - name: Checkout code
@@ -39,36 +41,64 @@ jobs:
 
       - name: Read build configuration
         id: config
+        env:
+          SECRET_BUNDLE_ID:          ${{ secrets.IOS_BUNDLE_ID }}
+          SECRET_BUNDLE_ID_KEYBOARD: ${{ secrets.IOS_BUNDLE_ID_KEYBOARD }}
+          SECRET_TEAM_ID:            ${{ secrets.IOS_TEAM_ID }}
+          SECRET_EXPORT_METHOD:      ${{ secrets.IOS_EXPORT_METHOD }}
         run: |
           APP_NAME=$(grep 'appName=' assets/build.app | cut -d'=' -f2)
           CONFIG_FILE="assets/$APP_NAME/app.cfg"
 
-          NEED_DEBUG=$(grep '^needDebug=' $CONFIG_FILE | cut -d'=' -f2 | tr '[:upper:]' '[:lower:]')
-          APP_VERSION=$(grep '^appVersion=' $CONFIG_FILE | cut -d'=' -f2)
-          APP_DISPLAY_NAME=$(grep '^appDisplayName=' $CONFIG_FILE | cut -d'=' -f2)
+          # 从配置文件读取值
+          CFG_NEED_DEBUG=$(grep '^needDebug=' $CONFIG_FILE | cut -d'=' -f2 | tr '[:upper:]' '[:lower:]')
+          CFG_APP_VERSION=$(grep '^appVersion=' $CONFIG_FILE | cut -d'=' -f2)
+          CFG_APP_DISPLAY_NAME=$(grep '^appDisplayName=' $CONFIG_FILE | cut -d'=' -f2)
+          CFG_BUNDLE_ID=$(grep '^appId=' $CONFIG_FILE | cut -d'=' -f2)
+          CFG_TEAM_ID=$(grep '^iosTeamId=' $CONFIG_FILE | cut -d'=' -f2)
+          CFG_EXPORT_METHOD=$(grep '^iosExportMethod=' $CONFIG_FILE | cut -d'=' -f2)
 
-          NEED_DEBUG=${NEED_DEBUG:-false}
+          # 优先使用 GitHub Secrets，未设置则回退到配置文件
+          NEED_DEBUG=${CFG_NEED_DEBUG:-false}
+          APP_VERSION=$CFG_APP_VERSION
+          APP_DISPLAY_NAME=$CFG_APP_DISPLAY_NAME
+          BUNDLE_ID=${SECRET_BUNDLE_ID:-$CFG_BUNDLE_ID}
+          TEAM_ID=${SECRET_TEAM_ID:-$CFG_TEAM_ID}
+          EXPORT_METHOD=${SECRET_EXPORT_METHOD:-${CFG_EXPORT_METHOD:-app-store}}
+          BUNDLE_ID_KEYBOARD=${SECRET_BUNDLE_ID_KEYBOARD:-${BUNDLE_ID}.HamsterKeyboard}
 
-          echo "need_debug=$NEED_DEBUG"              >> $GITHUB_OUTPUT
-          echo "app_version=$APP_VERSION"            >> $GITHUB_OUTPUT
-          echo "app_display_name=$APP_DISPLAY_NAME"  >> $GITHUB_OUTPUT
+          echo "need_debug=$NEED_DEBUG"                    >> $GITHUB_OUTPUT
+          echo "app_version=$APP_VERSION"                  >> $GITHUB_OUTPUT
+          echo "app_display_name=$APP_DISPLAY_NAME"        >> $GITHUB_OUTPUT
+          echo "bundle_id=$BUNDLE_ID"                      >> $GITHUB_OUTPUT
+          echo "bundle_id_keyboard=$BUNDLE_ID_KEYBOARD"    >> $GITHUB_OUTPUT
+          echo "team_id=$TEAM_ID"                          >> $GITHUB_OUTPUT
+          echo "export_method=$EXPORT_METHOD"              >> $GITHUB_OUTPUT
 
           echo "Need Debug: $NEED_DEBUG"
           echo "App Version: $APP_VERSION"
           echo "App Display Name: $APP_DISPLAY_NAME"
+          echo "Bundle ID: $BUNDLE_ID (source: $([ -n "$SECRET_BUNDLE_ID" ] && echo 'secrets' || echo 'app.cfg'))"
+          echo "Bundle ID Keyboard: $BUNDLE_ID_KEYBOARD (source: $([ -n "$SECRET_BUNDLE_ID_KEYBOARD" ] && echo 'secrets' || echo 'derived'))"
+          echo "Team ID: $TEAM_ID (source: $([ -n "$SECRET_TEAM_ID" ] && echo 'secrets' || echo 'app.cfg'))"
+          echo "Export Method: $EXPORT_METHOD (source: $([ -n "$SECRET_EXPORT_METHOD" ] && echo 'secrets' || echo 'app.cfg'))"
 
   # ============================================================================
   # Job 2 ── iOS 构建（Debug + Release）+ GitHub Release
   #
-  #  所需 GitHub Secrets:
+  #  所需 GitHub Secrets（必填）:
   #    KEYCHAIN_PASSWORD                        临时 keychain 密码（任意字符串）
-  #    IOS_TEAM_ID                              Apple 开发者 Team ID
   #    IOS_CERTIFICATE_BASE64                   发布证书 .p12 的 base64 编码
   #    IOS_CERTIFICATE_PASSWORD                 .p12 证书的保护密码
   #    IOS_PROVISIONING_PROFILE_BASE64          主 App 描述文件 .mobileprovision 的 base64
   #    IOS_KEYBOARD_PROVISIONING_PROFILE_BASE64 键盘扩展描述文件 .mobileprovision 的 base64
-  #    IOS_EXPORT_METHOD                        导出方式: app-store / ad-hoc / development
   #    TOKEN                                    GitHub Token（用于 Release）
+  #
+  #  可选 GitHub Secrets（优先级高于配置文件，未设置则回退到 app.cfg）:
+  #    IOS_BUNDLE_ID            → Bundle ID（主 App），回退: appId
+  #    IOS_BUNDLE_ID_KEYBOARD   → Bundle ID（键盘扩展），回退: ${BUNDLE_ID}.HamsterKeyboard
+  #    IOS_TEAM_ID              → Apple 开发者 Team ID，回退: iosTeamId
+  #    IOS_EXPORT_METHOD        → 导出方式，回退: iosExportMethod
   # ============================================================================
   build:
     name: Build Hamster iOS App
@@ -222,39 +252,35 @@ jobs:
 
       - name: Generate exportOptions.plist
         working-directory: ${{ env.HAMSTER_DIR }}
+        env:
+          EXPORT_METHOD: ${{ needs.prepare.outputs.export_method }}
+          TEAM_ID:       ${{ needs.prepare.outputs.team_id }}
+          BUNDLE_ID:     ${{ needs.prepare.outputs.bundle_id }}
+          BUNDLE_ID_KB:  ${{ needs.prepare.outputs.bundle_id_keyboard }}
         run: |
-          cat > exportOptions.plist << 'EXPORT_EOF'
+          cat > exportOptions.plist << EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
           <plist version="1.0">
           <dict>
               <key>method</key>
-              <string>EXPORT_METHOD_PLACEHOLDER</string>
+              <string>${EXPORT_METHOD}</string>
               <key>teamID</key>
-              <string>TEAM_ID_PLACEHOLDER</string>
+              <string>${TEAM_ID}</string>
               <key>signingStyle</key>
               <string>manual</string>
               <key>signingCertificate</key>
               <string>Apple Distribution</string>
               <key>provisioningProfiles</key>
               <dict>
-                  <key>BUNDLE_ID_MAIN_PLACEHOLDER</key>
-                  <string>MAIN_PROFILE_PLACEHOLDER</string>
-                  <key>BUNDLE_ID_KEYBOARD_PLACEHOLDER</key>
-                  <string>KEYBOARD_PROFILE_PLACEHOLDER</string>
+                  <key>${BUNDLE_ID}</key>
+                  <string>${MAIN_PROFILE_NAME}</string>
+                  <key>${BUNDLE_ID_KB}</key>
+                  <string>${KEYBOARD_PROFILE_NAME}</string>
               </dict>
           </dict>
           </plist>
-          EXPORT_EOF
-
-          sed -i'' \
-            -e "s|EXPORT_METHOD_PLACEHOLDER|${{ secrets.IOS_EXPORT_METHOD }}|g" \
-            -e "s|TEAM_ID_PLACEHOLDER|${{ secrets.IOS_TEAM_ID }}|g" \
-            -e "s|BUNDLE_ID_MAIN_PLACEHOLDER|${{ env.BUNDLE_ID_MAIN }}|g" \
-            -e "s|MAIN_PROFILE_PLACEHOLDER|$MAIN_PROFILE_NAME|g" \
-            -e "s|BUNDLE_ID_KEYBOARD_PLACEHOLDER|${{ env.BUNDLE_ID_KEYBOARD }}|g" \
-            -e "s|KEYBOARD_PROFILE_PLACEHOLDER|$KEYBOARD_PROFILE_NAME|g" \
-            exportOptions.plist
+          EOF
 
           echo "── exportOptions.plist ──"
           cat exportOptions.plist
