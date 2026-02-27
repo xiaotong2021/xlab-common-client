@@ -129,11 +129,11 @@ jobs:
           echo "Team ID: $TEAM_ID (source: $([ -n "$SECRET_TEAM_ID" ] && echo 'secrets' || echo 'app.cfg'))"
           echo "Export Method: $EXPORT_METHOD (source: $([ -n "$SECRET_EXPORT_METHOD" ] && echo 'secrets' || echo 'app.cfg'))"
 
-      # ── 替换 Xcode 工程中的 Bundle ID ──────────────────────────────────────────
-      - name: Update Xcode project Bundle IDs
+      # ── 替换工程中的 Bundle ID / App Group 等标识符 ────────────────────────────
+      - name: Update Bundle IDs and App Group
         run: |
           python3 scripts/update_bundle_id.py \
-            "${{ env.HAMSTER_DIR }}/Hamster.xcodeproj/project.pbxproj" \
+            "${{ env.HAMSTER_DIR }}" \
             "$BUNDLE_ID" \
             "$BUNDLE_ID_KEYBOARD"
 
