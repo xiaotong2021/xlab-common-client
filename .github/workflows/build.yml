@@ -436,11 +436,6 @@ jobs:
           echo ""
           echo "✅ App Group entitlements 验证通过"
 
-      # ── 打包 xcarchive（可在 Xcode Organizer 中重新导出或 resign）─────────────
-      - name: Package xcarchive
-        working-directory: ${{ env.HAMSTER_DIR }}
-        run: tar -acf Hamster.xcarchive.tgz Hamster.xcarchive
-
       # ========== 准备发布产物 ==========
       - name: Prepare release artifacts
         run: |
@@ -460,13 +455,6 @@ jobs:
             cp "$file" "./artifacts/Hamster-${{ needs.prepare.outputs.app_version }}.ipa"
             echo "已复制: Hamster-${{ needs.prepare.outputs.app_version }}.ipa"
           done
-
-          # xcarchive
-          if [ -f "${{ env.HAMSTER_DIR }}/Hamster.xcarchive.tgz" ]; then
-            cp "${{ env.HAMSTER_DIR }}/Hamster.xcarchive.tgz" \
-              "./artifacts/Hamster-${{ needs.prepare.outputs.app_version }}.xcarchive.tgz"
-            echo "已复制: Hamster-${{ needs.prepare.outputs.app_version }}.xcarchive.tgz"
-          fi
 
           echo "=== 发布文件列表 ==="
           ls -lR ./artifacts/
@@ -490,13 +478,6 @@ jobs:
             | `ad-hoc`    | AltStore / Sideloadly 等工具侧载 |
             | `development` | Xcode 直接安装到已注册的开发设备 |
 
-            ### 📁 文件说明
-            | 文件 | 说明 |
-            |------|------|
-            | `Hamster-*.ipa` | iOS 安装包 |
-            | `Hamster-*-Debug-Simulator.zip` | 模拟器 Debug 包（仅开启 debug 时生成） |
-            | `Hamster-*.xcarchive.tgz` | Xcode 归档，可重新导出或 resign |
-
             ### 📝 变更内容
             详见 [Commits](https://github.com/${{ github.repository }}/commits/${{ github.ref_name }})
           draft: false
@@ -504,5 +485,4 @@ jobs:
           files: |
             ./artifacts/Hamster-*.ipa
             ./artifacts/Hamster-*-Debug-Simulator.zip
-            ./artifacts/Hamster-*.xcarchive.tgz
           fail_on_unmatched_files: false
