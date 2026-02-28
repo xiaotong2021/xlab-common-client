@@ -28,8 +28,11 @@ public class SharedUserManager {
   /// 使用 HamsterConstants.appGroupName（当前值：group.com.xlab.aiime）
   private let sharedDefaults = UserDefaults.hamster
 
-  /// UserDefaults 存储键值（与 UserManager 保持一致）
-  private let userDefaultsKey = "hamster_shared_current_user"
+  /// AppGroup 共享存储键值（与 UserManager.sharedUserDefaultsKey 一致）
+  private let sharedUserDefaultsKey = "hamster_shared_current_user"
+
+  /// 标准 UserDefaults 存储键值（与 UserManager.userDefaultsKey 一致，用于主应用内回退）
+  private let standardUserDefaultsKey = "hamster_current_user"
 
   /// 私有初始化方法，确保单例模式
   private init() {
@@ -37,25 +40,34 @@ public class SharedUserManager {
   }
 
   /// 获取当前登录用户
-  /// 从 AppGroup 共享存储中读取主应用保存的用户信息
-  /// - Returns: 当前登录的用户信息，如果未登录则返回 nil
+  /// 读取优先级：
+  ///   1. AppGroup 共享存储（键盘扩展和主应用均可访问）
+  ///   2. 标准 UserDefaults（仅主应用进程内有效，App Group 不可用时的回退）
   public var currentUser: User? {
-    Logger.statistics.debug("SharedUserManager: 开始从 AppGroup 共享存储获取当前登录用户")
-
-    guard let userData = sharedDefaults.data(forKey: userDefaultsKey) else {
-      Logger.statistics.debug("SharedUserManager: AppGroup 共享存储中没有用户信息，用户未登录")
-      return nil
+    // 优先从 AppGroup 共享存储读取
+    if let user = loadUser(from: sharedDefaults, key: sharedUserDefaultsKey, source: "AppGroup") {
+      return user
     }
 
+    // 回退到标准 UserDefaults（主应用进程内 App Group 不可用时）
+    if let user = loadUser(from: UserDefaults.standard, key: standardUserDefaultsKey, source: "标准UserDefaults") {
+      return user
+    }
+
+    Logger.statistics.debug("SharedUserManager: 所有存储源均未找到用户信息，用户未登录")
+    return nil
+  }
+
+  private func loadUser(from defaults: UserDefaults, key: String, source: String) -> User? {
+    guard let userData = defaults.data(forKey: key) else {
+      return nil
+    }
     do {
-      let decodedUser = try JSONDecoder().decode(User.self, from: userData)
-      Logger.statistics.info("SharedUserManager: 成功从 AppGroup 共享存储加载用户信息 - 用户名: \(decodedUser.username), Token长度: \(decodedUser.token.count)")
-      return decodedUser
+      let user = try JSONDecoder().decode(User.self, from: userData)
+      Logger.statistics.info("SharedUserManager: 从\(source)加载到用户 - \(user.username)")
+      return user
     } catch {
-      Logger.statistics.error("SharedUserManager: 解析 AppGroup 共享存储中的用户信息失败 - 错误: \(error.localizedDescription)")
-      // 如果解析失败，清除损坏的数据
-      sharedDefaults.removeObject(forKey: userDefaultsKey)
-      Logger.statistics.warning("SharedUserManager: 已清除 AppGroup 共享存储中的损坏用户数据")
+      Logger.statistics.error("SharedUserManager: 从\(source)解析用户失败 - \(error.localizedDescription)")
       return nil
     }
   }
@@ -69,45 +81,33 @@ public class SharedUserManager {
     return loggedIn
   }
 
-  /// 保存用户信息到AppGroup共享存储
-  /// - Parameter user: 要保存的用户信息
-  ///
-  /// 注意：该方法主要用于测试和特殊情况，正常情况下用户信息由主应用的 UserManager 保存
+  /// 保存用户信息到 AppGroup 共享存储和标准 UserDefaults
   public func saveUser(_ user: User) {
-    Logger.statistics.info("SharedUserManager: 开始保存用户信息到 AppGroup 共享存储 - 用户名: \(user.username), Token长度: \(user.token.count)")
-
     do {
       let userData = try JSONEncoder().encode(user)
-      sharedDefaults.set(userData, forKey: userDefaultsKey)
-      sharedDefaults.synchronize() // 确保立即同步到磁盘
-      Logger.statistics.info("SharedUserManager: 用户信息已成功保存到 AppGroup 共享存储 - 用户名: \(user.username)")
+      sharedDefaults.set(userData, forKey: sharedUserDefaultsKey)
+      sharedDefaults.synchronize()
+      UserDefaults.standard.set(userData, forKey: standardUserDefaultsKey)
+      UserDefaults.standard.synchronize()
+      Logger.statistics.info("SharedUserManager: 用户信息已保存 - 用户名: \(user.username)")
     } catch {
-      Logger.statistics.error("SharedUserManager: 保存用户信息到 AppGroup 共享存储失败 - 错误: \(error.localizedDescription)")
+      Logger.statistics.error("SharedUserManager: 保存用户信息失败 - \(error.localizedDescription)")
     }
   }
 
-  /// 用户登出操作
-  /// 清除AppGroup共享存储中的用户信息
-  ///
-  /// 注意：该方法主要用于测试和特殊情况，正常情况下登出操作由主应用的 UserManager 处理
+  /// 用户登出，清除所有存储
   public func logout() {
-    Logger.statistics.debug("SharedUserManager: 开始执行用户登出操作")
-
     let logoutUsername = currentUser?.username ?? "unknown"
-    sharedDefaults.removeObject(forKey: userDefaultsKey)
-    sharedDefaults.synchronize() // 确保立即同步到磁盘
-
-    Logger.statistics.info("SharedUserManager: 用户已成功从 AppGroup 共享存储登出 - 原用户名: \(logoutUsername)")
+    sharedDefaults.removeObject(forKey: sharedUserDefaultsKey)
+    sharedDefaults.synchronize()
+    UserDefaults.standard.removeObject(forKey: standardUserDefaultsKey)
+    UserDefaults.standard.synchronize()
+    Logger.statistics.info("SharedUserManager: 用户已登出 - 原用户名: \(logoutUsername)")
   }
 
   /// 更新用户信息
-  /// - Parameter user: 新的用户信息
-  ///
-  /// 注意：该方法主要用于测试和特殊情况，正常情况下用户信息更新由主应用的 UserManager 处理
   public func updateUser(_ user: User) {
-    Logger.statistics.debug("SharedUserManager: 开始更新 AppGroup 共享用户信息 - 用户名: \(user.username)")
     saveUser(user)
-    Logger.statistics.info("SharedUserManager: AppGroup 共享用户信息更新完成 - 用户名: \(user.username)")
   }
 }
 
