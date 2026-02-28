@@ -256,7 +256,7 @@ jobs:
           echo "主 App Profile: $MAIN_NAME (UUID: $MAIN_UUID)"
 
           # ── 安装键盘扩展 Provisioning Profile ────────────────────────────────
-          # 未单独配置时复用主 App Profile（适用于通配符 Profile，如 com.xlab.*）
+          # 需要独立的显式 Profile（含 App Groups 能力），未配置时回退到主 App Profile
           if [ -n "$PROFILE_KEYBOARD_BASE64" ]; then
             echo "$PROFILE_KEYBOARD_BASE64" | base64 --decode > profile_keyboard.mobileprovision
             if security cms -D -i profile_keyboard.mobileprovision > /dev/null 2>&1; then
@@ -348,6 +348,55 @@ jobs:
             -exportOptionsPlist exportOptions.plist
           echo "── 导出产物 ──"
           ls -lh Hamster-Release/
+
+      - name: Verify App Group entitlements in IPA
+        working-directory: ${{ env.HAMSTER_DIR }}
+        run: |
+          IPA_PATH=$(find Hamster-Release -name "*.ipa" -type f | head -1)
+          if [ -z "$IPA_PATH" ]; then
+            echo "⚠️ 未找到 IPA，跳过 entitlements 验证"
+            exit 0
+          fi
+
+          TMPDIR=$(mktemp -d)
+          unzip -q "$IPA_PATH" -d "$TMPDIR"
+
+          APP_PATH=$(find "$TMPDIR/Payload" -name "*.app" -maxdepth 1 -type d | head -1)
+          EXPECTED_GROUP="group.com.xlab.aiime"
+
+          echo "── 验证主 App entitlements ──"
+          codesign -d --entitlements - "$APP_PATH" 2>&1 | head -30
+          if codesign -d --entitlements - "$APP_PATH" 2>&1 | grep -q "$EXPECTED_GROUP"; then
+            echo "✅ 主 App 包含 App Group: $EXPECTED_GROUP"
+          else
+            echo "❌ 主 App 缺少 App Group: $EXPECTED_GROUP"
+            echo ""
+            echo "修复方法："
+            echo "  1. Apple Developer Portal → Identifiers → ${BUNDLE_ID} → 启用 App Groups → 添加 $EXPECTED_GROUP"
+            echo "  2. 重新生成 Provisioning Profile 并更新 GitHub Secret: IOS_PROVISIONING_PROFILE_BASE64"
+            exit 1
+          fi
+
+          echo ""
+          echo "── 验证键盘扩展 entitlements ──"
+          APPEX_PATH=$(find "$APP_PATH/PlugIns" -name "*.appex" -type d | head -1)
+          if [ -n "$APPEX_PATH" ]; then
+            codesign -d --entitlements - "$APPEX_PATH" 2>&1 | head -30
+            if codesign -d --entitlements - "$APPEX_PATH" 2>&1 | grep -q "$EXPECTED_GROUP"; then
+              echo "✅ 键盘扩展包含 App Group: $EXPECTED_GROUP"
+            else
+              echo "❌ 键盘扩展缺少 App Group: $EXPECTED_GROUP"
+              echo ""
+              echo "修复方法："
+              echo "  1. Apple Developer Portal → Identifiers → ${BUNDLE_ID_KEYBOARD} → 启用 App Groups → 添加 $EXPECTED_GROUP"
+              echo "  2. 重新生成键盘扩展 Provisioning Profile 并更新 GitHub Secret: IOS_KEYBOARD_PROVISIONING_PROFILE_BASE64"
+              exit 1
+            fi
+          fi
+
+          rm -rf "$TMPDIR"
+          echo ""
+          echo "✅ App Group entitlements 验证通过"
 
       # ── 打包 xcarchive（可在 Xcode Organizer 中重新导出或 resign）─────────────
       - name: Package xcarchive
