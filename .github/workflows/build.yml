@@ -72,7 +72,7 @@ jobs:
   #    KEYCHAIN_PASSWORD                        临时 keychain 密码（任意字符串）
   #    IOS_CERTIFICATE_BASE64                   发布证书 .p12 的 base64 编码
   #    IOS_CERTIFICATE_PASSWORD                 .p12 证书的保护密码
-  #    IOS_PROVISIONING_PROFILE_BASE64          主 App 描述文件 .mobileprovision 的 base64
+  #    IOS_MAIN_PROVISIONING_PROFILE_BASE64          主 App 描述文件 .mobileprovision 的 base64
   #    TOKEN                                    GitHub Token（用于 Release）
   #
   #  可选 GitHub Secrets（未设置则跳过）:
@@ -225,7 +225,7 @@ jobs:
         env:
           CERTIFICATE_BASE64:      ${{ secrets.IOS_CERTIFICATE_BASE64 }}
           CERTIFICATE_PASSWORD:    ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
-          PROFILE_MAIN_BASE64:     ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+          PROFILE_MAIN_BASE64:     ${{ secrets.IOS_MAIN_PROVISIONING_PROFILE_BASE64 }}
           PROFILE_KEYBOARD_BASE64: ${{ secrets.IOS_KEYBOARD_PROVISIONING_PROFILE_BASE64 }}
           KEYCHAIN_PASSWORD:       ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
@@ -373,7 +373,7 @@ jobs:
             echo ""
             echo "修复方法："
             echo "  1. Apple Developer Portal → Identifiers → ${BUNDLE_ID} → 启用 App Groups → 添加 $EXPECTED_GROUP"
-            echo "  2. 重新生成 Provisioning Profile 并更新 GitHub Secret: IOS_PROVISIONING_PROFILE_BASE64"
+            echo "  2. 重新生成 Provisioning Profile 并更新 GitHub Secret: IOS_MAIN_PROVISIONING_PROFILE_BASE64"
             exit 1
           fi
 
