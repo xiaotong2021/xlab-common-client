@@ -292,9 +292,9 @@ jobs:
           echo "KEYBOARD_PROFILE_NAME=$KEYBOARD_NAME" >> $GITHUB_ENV
           echo "CERT_IDENTITY=$CERT_IDENTITY"         >> $GITHUB_ENV
 
-      # 归档阶段不签名，签名在 exportArchive 统一完成。
-      # 这样可以为不同 target（主 App / 键盘扩展）指定不同 profile。
-      - name: Archive (unsigned)
+      # 归档阶段必须启用签名，否则 .entitlements 中的能力声明（如 App Groups）
+      # 不会嵌入二进制文件，导致 exportArchive 即使用了正确的 Profile 也无法包含这些能力。
+      - name: Archive
         working-directory: ${{ env.HAMSTER_DIR }}
         run: |
           xcodebuild archive \
@@ -304,7 +304,9 @@ jobs:
             -sdk iphoneos \
             -arch arm64 \
             -archivePath Hamster.xcarchive \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            DEVELOPMENT_TEAM="${TEAM_ID}"
 
       - name: Generate exportOptions.plist
         working-directory: ${{ env.HAMSTER_DIR }}
