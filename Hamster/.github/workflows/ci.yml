@@ -104,10 +104,41 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
 
+      # ── 重签名注入 entitlements（解决 App Group containerURL 返回 nil）────
+      # Debug 构建禁用了 CODE_SIGNING，entitlements 不会嵌入二进制。
+      # 用 ad-hoc 签名（无需证书）将 entitlements 注入，使模拟器上 App Group 可用。
+      - name: Re-sign Debug build with entitlements
+        run: |
+          APP_PATH=$(find build-debug -name "*.app" -not -path "*/PlugIns/*" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "⚠️ 未找到 .app，跳过重签名"
+            exit 0
+          fi
+
+          # 先签键盘扩展（嵌套签名必须由内向外）
+          for APPEX in "$APP_PATH"/PlugIns/*.appex; do
+            [ -d "$APPEX" ] || continue
+            APPEX_NAME=$(basename "$APPEX" .appex)
+            APPEX_ENTITLEMENTS="HamsterKeyboard/HamsterKeyboardDebug.entitlements"
+            if [ -f "$APPEX_ENTITLEMENTS" ]; then
+              codesign --force --sign - --entitlements "$APPEX_ENTITLEMENTS" "$APPEX"
+              echo "✅ 已重签键盘扩展: $APPEX_NAME"
+            fi
+          done
+
+          # 再签主 App
+          MAIN_ENTITLEMENTS="Hamster/HamsterDebug.entitlements"
+          if [ -f "$MAIN_ENTITLEMENTS" ]; then
+            codesign --force --sign - --entitlements "$MAIN_ENTITLEMENTS" "$APP_PATH"
+            echo "✅ 已重签主 App（含 App Group entitlements）"
+          fi
+
+          echo "── 验证嵌入的 entitlements ──"
+          codesign -d --entitlements - "$APP_PATH" 2>&1 | head -20
+
       # ── 打包 .app 为 zip ────────────────────────────────────────────────────
       - name: Package Debug .app
         run: |
-          # 排除 PlugIns 子目录（里面是 extension 的 .appex，不是主 app）
           APP_PATH=$(find build-debug -name "*.app" -not -path "*/PlugIns/*" -type d | head -1)
           if [ -z "$APP_PATH" ]; then
             echo "❌ 未找到 .app 编译产物"
