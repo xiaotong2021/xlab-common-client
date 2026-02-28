@@ -571,44 +571,22 @@ class AIQueryView: NibLessView {
         if let jsonObject = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
           Logger.statistics.debug("AIQueryView: JSON解析成功，响应字段: \(jsonObject.keys)")
 
-          // 根据Kotlin代码的响应格式解析
           if let sessionId = jsonObject["sessionId"] as? String {
             currentSessionId = sessionId
             Logger.statistics.debug("AIQueryView: 更新会话ID: \(sessionId)")
           }
 
-          if let aiReply = jsonObject["text"] as? String {
-            Logger.statistics.info("AIQueryView: 解析得到AI回复，长度: \(aiReply.count)")
-            showResponse(aiReply)
-          } else {
-            // 如果没有找到 text 字段，尝试其他可能的字段
-            var responseText = ""
-            if let content = jsonObject["content"] as? String {
-              responseText = content
-              Logger.statistics.debug("AIQueryView: 使用 content 字段作为响应")
-            } else if let answer = jsonObject["answer"] as? String {
-              responseText = answer
-              Logger.statistics.debug("AIQueryView: 使用 answer 字段作为响应")
-            } else if let result = jsonObject["result"] as? String {
-              responseText = result
-              Logger.statistics.debug("AIQueryView: 使用 result 字段作为响应")
-            } else {
-              responseText = String(data: data, encoding: .utf8) ?? "解析响应失败"
-              Logger.statistics.warning("AIQueryView: 未找到预期的响应字段，使用原始响应内容")
-            }
-
-            Logger.statistics.info("AIQueryView: 使用备用字段解析得到响应文本，长度: \(responseText.count)")
-            showResponse(responseText)
-          }
+          // 解析响应文本和引用文档（参考 WebViewApp ChatResponse 的处理方式）
+          let (body, refers) = Self.extractTextAndRefers(from: jsonObject, rawData: data)
+          Logger.statistics.info("AIQueryView: 解析完成，正文长度: \(body.count)，引用数量: \(refers.count)")
+          showResponse(Self.formatResponse(body: body, refers: refers))
         } else {
-          // 如果不是JSON格式，直接显示文本
           let responseText = String(data: data, encoding: .utf8) ?? "无法解析响应"
           Logger.statistics.info("AIQueryView: 非JSON响应，直接显示文本，长度: \(responseText.count)")
           showResponse(responseText)
         }
       } catch {
         Logger.statistics.error("AIQueryView: JSON解析失败: \(error.localizedDescription)")
-        Logger.statistics.debug("AIQueryView: 原始响应数据: \(String(data: data, encoding: .utf8) ?? "无法转换为字符串")")
         showError("响应解析错误，请稍后重试")
       }
     } else {
@@ -681,24 +659,53 @@ class AIQueryView: NibLessView {
     insertButton.alpha = 1.0
   }
 
+  /// 从 JSON 响应中提取正文和引用文档
+  /// 兼容双重编码：text 字段本身可能是包含 {"text":..., "refers":[...]} 的 JSON 字符串
+  private static func extractTextAndRefers(from json: [String: Any], rawData: Data) -> (body: String, refers: [String]) {
+    var body: String
+    var refers: [String] = json["refers"] as? [String] ?? []
+
+    if let text = json["text"] as? String {
+      body = text
+    } else {
+      body = json["answer"] as? String
+        ?? json["content"] as? String
+        ?? json["result"] as? String
+        ?? (String(data: rawData, encoding: .utf8) ?? "")
+    }
+
+    // 二次解析：text 本身可能是一段 JSON 字符串
+    let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+    if trimmed.hasPrefix("{"),
+       let innerData = trimmed.data(using: .utf8),
+       let innerJSON = try? JSONSerialization.jsonObject(with: innerData) as? [String: Any],
+       let innerText = innerJSON["text"] as? String {
+      body = innerText
+      if let innerRefers = innerJSON["refers"] as? [String], !innerRefers.isEmpty {
+        refers = innerRefers
+      }
+    }
+
+    // 将服务端返回的 \n 字面量统一为真实换行
+    body = body.replacingOccurrences(of: "\\n", with: "\n")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+
+    return (body, refers)
+  }
+
+  /// 将正文和引用文档格式化为可读文本
+  private static func formatResponse(body: String, refers: [String]) -> String {
+    guard !refers.isEmpty else { return body }
+    let refLine = "引用文档：" + refers.joined(separator: "、")
+    return "\(body)\n\n\(refLine)"
+  }
+
   private func showResponse(_ text: String) {
     Logger.statistics.info("AIQueryView: 显示响应内容，长度: \(text.count)")
 
     currentResponse = text
 
-    // 处理最多10行的限制
-    let lines = text.components(separatedBy: .newlines)
-    let displayText: String
-
-    if lines.count > 10 {
-      let first10Lines = Array(lines.prefix(10))
-      displayText = first10Lines.joined(separator: "\n") + "\n..."
-      Logger.statistics.debug("AIQueryView: 响应内容超过10行，已截断显示")
-    } else {
-      displayText = text
-    }
-
-    responseTextView.text = displayText
+    responseTextView.text = text
     responseTextView.isHidden = false
     regenerateButton.isHidden = false
     insertButton.isHidden = false
