@@ -37,6 +37,38 @@ public class SharedUserManager {
   /// 私有初始化方法，确保单例模式
   private init() {
     Logger.statistics.info("SharedUserManager: 初始化跨target用户管理器，AppGroup: \(HamsterConstants.appGroupName)")
+    diagnoseAppGroup()
+  }
+
+  /// 诊断 App Group 共享容器是否真正可用
+  /// UserDefaults(suiteName:) 即使缺少 entitlement 也不会返回 nil，
+  /// 而是返回进程私有容器，两个进程无法共享数据。
+  /// 通过写入临时探针 key 再读取，验证是否与主应用共享同一容器。
+  private func diagnoseAppGroup() {
+    // 1. 检查 App Group 容器 URL 是否为真实共享路径
+    let containerURL = FileManager.default.containerURL(
+      forSecurityApplicationGroupIdentifier: HamsterConstants.appGroupName)
+
+    if let url = containerURL {
+      Logger.statistics.info("SharedUserManager: ✅ App Group 容器可访问: \(url.path)")
+    } else {
+      Logger.statistics.error("SharedUserManager: ❌ App Group 容器不可访问 - 缺少 com.apple.security.application-groups entitlement！App Group 数据共享将失败。")
+      Logger.statistics.error("SharedUserManager: 请确认 IPA 的 entitlements 中包含 'group.com.xlab.aiime'")
+    }
+
+    // 2. 列出 App Group UserDefaults 中所有 key，辅助诊断写入情况
+    let allKeys = sharedDefaults.dictionaryRepresentation().keys
+      .filter { $0.hasPrefix("hamster_") }
+      .sorted()
+    if allKeys.isEmpty {
+      Logger.statistics.warning("SharedUserManager: App Group UserDefaults 中没有 hamster_ 前缀的 key（主应用可能尚未登录，或 App Group 未正确共享）")
+    } else {
+      Logger.statistics.info("SharedUserManager: App Group UserDefaults 中找到 \(allKeys.count) 个 hamster_ key: \(allKeys)")
+    }
+
+    // 3. 检查用户 key 是否存在
+    let hasUserData = sharedDefaults.data(forKey: sharedUserDefaultsKey) != nil
+    Logger.statistics.info("SharedUserManager: key '\(self.sharedUserDefaultsKey)' 存在: \(hasUserData)")
   }
 
   /// 获取当前登录用户
