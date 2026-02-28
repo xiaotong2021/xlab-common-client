@@ -292,9 +292,9 @@ jobs:
           echo "KEYBOARD_PROFILE_NAME=$KEYBOARD_NAME" >> $GITHUB_ENV
           echo "CERT_IDENTITY=$CERT_IDENTITY"         >> $GITHUB_ENV
 
-      # 归档阶段必须启用签名，否则 .entitlements 中的能力声明（如 App Groups）
-      # 不会嵌入二进制文件，导致 exportArchive 即使用了正确的 Profile 也无法包含这些能力。
-      - name: Archive
+      # 归档阶段不签名（避免 per-target Profile 匹配问题），
+      # 但归档后用 ad-hoc 签名将 entitlements 嵌入二进制，确保 exportArchive 能正确包含 App Groups 等能力。
+      - name: Archive (unsigned)
         working-directory: ${{ env.HAMSTER_DIR }}
         run: |
           xcodebuild archive \
@@ -304,9 +304,45 @@ jobs:
             -sdk iphoneos \
             -arch arm64 \
             -archivePath Hamster.xcarchive \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            DEVELOPMENT_TEAM="${TEAM_ID}"
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Embed entitlements into archive
+        working-directory: ${{ env.HAMSTER_DIR }}
+        run: |
+          ARCHIVE_APP="Hamster.xcarchive/Products/Applications/Hamster.app"
+          if [ ! -d "$ARCHIVE_APP" ]; then
+            echo "❌ 未找到 archive 中的 .app"
+            exit 1
+          fi
+
+          # 先签键盘扩展（嵌套签名必须由内向外）
+          for APPEX in "$ARCHIVE_APP"/PlugIns/*.appex; do
+            [ -d "$APPEX" ] || continue
+            APPEX_NAME=$(basename "$APPEX" .appex)
+            APPEX_ENTITLEMENTS="HamsterKeyboard/HamsterKeyboard.entitlements"
+            if [ -f "$APPEX_ENTITLEMENTS" ]; then
+              codesign --force --sign - --entitlements "$APPEX_ENTITLEMENTS" "$APPEX"
+              echo "✅ 已嵌入键盘扩展 entitlements: $APPEX_NAME"
+            fi
+          done
+
+          # 再签主 App
+          MAIN_ENTITLEMENTS="Hamster/Hamster.entitlements"
+          if [ -f "$MAIN_ENTITLEMENTS" ]; then
+            codesign --force --sign - --entitlements "$MAIN_ENTITLEMENTS" "$ARCHIVE_APP"
+            echo "✅ 已嵌入主 App entitlements"
+          fi
+
+          # 验证 entitlements 已嵌入
+          echo "── 验证 archive 中的 entitlements ──"
+          echo "主 App:"
+          codesign -d --entitlements - "$ARCHIVE_APP" 2>&1 | head -30
+          echo ""
+          echo "键盘扩展:"
+          APPEX_PATH=$(find "$ARCHIVE_APP/PlugIns" -name "*.appex" -type d | head -1)
+          if [ -n "$APPEX_PATH" ]; then
+            codesign -d --entitlements - "$APPEX_PATH" 2>&1 | head -15
+          fi
 
       - name: Generate exportOptions.plist
         working-directory: ${{ env.HAMSTER_DIR }}
