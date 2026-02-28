@@ -44,13 +44,20 @@ public class UserManager: ObservableObject {
   /// 私有初始化方法，确保单例模式
   /// 在初始化时自动加载本地存储的用户信息
   private init() {
-    // 初始化 AppGroup 共享存储，使用 HamsterConstants 中定义的 appGroupName
     guard let sharedUserDefaults = UserDefaults(suiteName: HamsterConstants.appGroupName) else {
       fatalError("UserManager: 无法初始化 AppGroup 共享存储，AppGroup 名称: \(HamsterConstants.appGroupName)")
     }
     self.sharedDefaults = sharedUserDefaults
 
     Logger.statistics.info("UserManager: 初始化用户管理器，AppGroup: \(HamsterConstants.appGroupName)")
+
+    // 诊断：检查 App Group 容器是否真实可访问（warning 级别在 Console 默认可见）
+    if let url = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: HamsterConstants.appGroupName) {
+      Logger.statistics.warning("UserManager: ✅ App Group 容器可访问: \(url.path)")
+    } else {
+      Logger.statistics.error("UserManager: ❌ App Group 容器不可访问 - 缺少 entitlement！键盘扩展将无法读取登录状态")
+    }
+
     loadUser()
   }
 
@@ -77,13 +84,15 @@ public class UserManager: ObservableObject {
 
       // 同步保存到 AppGroup 共享存储（键盘扩展使用）
       sharedDefaults.set(userData, forKey: sharedUserDefaultsKey)
-      Logger.statistics.debug("UserManager: 用户信息已保存到 AppGroup 共享存储: \(HamsterConstants.appGroupName)")
-
-      // 确保数据立即同步到磁盘
       UserDefaults.standard.synchronize()
       sharedDefaults.synchronize()
 
-      Logger.statistics.info("UserManager: 用户信息已成功保存到本地存储和AppGroup共享存储 - 用户名: \(user.username)")
+      // 验证写入结果（warning 级别在 Console 默认可见）
+      if sharedDefaults.data(forKey: sharedUserDefaultsKey) != nil {
+        Logger.statistics.warning("UserManager: ✅ AppGroup 写入验证成功 - 用户名: \(user.username)")
+      } else {
+        Logger.statistics.error("UserManager: ❌ AppGroup 写入验证失败！缺少 App Group entitlement，键盘扩展将无法读取登录状态")
+      }
     } catch {
       Logger.statistics.error("UserManager: 保存用户信息失败 - 错误: \(error.localizedDescription)")
     }

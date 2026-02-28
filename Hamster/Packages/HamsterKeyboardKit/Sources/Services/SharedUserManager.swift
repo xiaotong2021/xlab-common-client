@@ -45,30 +45,31 @@ public class SharedUserManager {
   /// 而是返回进程私有容器，两个进程无法共享数据。
   /// 通过写入临时探针 key 再读取，验证是否与主应用共享同一容器。
   private func diagnoseAppGroup() {
-    // 1. 检查 App Group 容器 URL 是否为真实共享路径
+    // 1. 检查 App Group 容器 URL（nil = 缺少 entitlement，数据无法跨进程共享）
     let containerURL = FileManager.default.containerURL(
       forSecurityApplicationGroupIdentifier: HamsterConstants.appGroupName)
 
     if let url = containerURL {
-      Logger.statistics.info("SharedUserManager: ✅ App Group 容器可访问: \(url.path)")
+      // warning 级别确保在 Console 默认视图可见
+      Logger.statistics.warning("SharedUserManager: ✅ App Group 容器可访问: \(url.path)")
     } else {
-      Logger.statistics.error("SharedUserManager: ❌ App Group 容器不可访问 - 缺少 com.apple.security.application-groups entitlement！App Group 数据共享将失败。")
-      Logger.statistics.error("SharedUserManager: 请确认 IPA 的 entitlements 中包含 'group.com.xlab.aiime'")
+      Logger.statistics.error("SharedUserManager: ❌ App Group 容器不可访问 - 缺少 entitlement！请确认 'group.com.xlab.aiime' 已在 IPA/entitlements 中声明")
+      return
     }
 
-    // 2. 列出 App Group UserDefaults 中所有 key，辅助诊断写入情况
+    // 2. 列出 App Group UserDefaults 中所有 hamster_ key
     let allKeys = sharedDefaults.dictionaryRepresentation().keys
       .filter { $0.hasPrefix("hamster_") }
       .sorted()
     if allKeys.isEmpty {
-      Logger.statistics.warning("SharedUserManager: App Group UserDefaults 中没有 hamster_ 前缀的 key（主应用可能尚未登录，或 App Group 未正确共享）")
+      Logger.statistics.error("SharedUserManager: ❌ App Group UserDefaults 中没有 hamster_ 数据 - 主应用可能未写入（请用新版主应用重新登录）")
     } else {
-      Logger.statistics.info("SharedUserManager: App Group UserDefaults 中找到 \(allKeys.count) 个 hamster_ key: \(allKeys)")
+      Logger.statistics.warning("SharedUserManager: App Group UserDefaults 找到 \(allKeys.count) 个 hamster_ key: \(allKeys)")
     }
 
     // 3. 检查用户 key 是否存在
     let hasUserData = sharedDefaults.data(forKey: sharedUserDefaultsKey) != nil
-    Logger.statistics.info("SharedUserManager: key '\(self.sharedUserDefaultsKey)' 存在: \(hasUserData)")
+    Logger.statistics.warning("SharedUserManager: key '\(self.sharedUserDefaultsKey)' 存在: \(hasUserData)")
   }
 
   /// 获取当前登录用户
