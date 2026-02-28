@@ -31,4 +31,5 @@ package/
 /Packages/HamsterFileServer/Front/dist/*
 /.idea/
 /build/
+/build-local/
 /参考项目/
