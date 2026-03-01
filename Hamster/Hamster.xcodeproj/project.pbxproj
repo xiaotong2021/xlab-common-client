@@ -31,8 +31,7 @@
 		C00C26E62B069D6B00E92F89 /* libmarisa.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C00C26C52B069D6A00E92F89 /* libmarisa.xcframework */; };
 		C00C26E82B069D6B00E92F89 /* librime.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C00C26C62B069D6A00E92F89 /* librime.xcframework */; };
 		C00C26E92B069D6B00E92F89 /* librime.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = C00C26C62B069D6A00E92F89 /* librime.xcframework */; };
-		C01396FC2AB499D80043674A /* RimeSyncIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = C01396F92AB499CA0043674A /* RimeSyncIntent.swift */; };
-		C01396FD2AB499D80043674A /* RimeDeployIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = C01396FA2AB499CA0043674A /* RimeDeployIntent.swift */; };
+		C0AI00012AB499D80043674A /* AIChatIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0AI00002AB499CA0043674A /* AIChatIntent.swift */; };
 		C02435B52A0490230080CFB4 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C02435952A0490220080CFB4 /* Preview Assets.xcassets */; };
 		C02C4D982AC105CA00FF91BA /* IntentProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C02C4D972AC105CA00FF91BA /* IntentProvider.swift */; };
 		C03319DA2A2DFEBB00CE4950 /* AppDelegete.swift in Sources */ = {isa = PBXBuildFile; fileRef = C03319D92A2DFEBB00CE4950 /* AppDelegete.swift */; };
@@ -46,7 +45,6 @@
 		C0C7EAEC29E5A236008D4EE1 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = C0C7EAEF29E5A236008D4EE1 /* InfoPlist.strings */; };
 		C0D672B429F1E0E7002D0439 /* SharedSupport.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = C0D672B329F1E066002D0439 /* SharedSupport.zip */; };
 		C0D856CC2B026FF6003DB275 /* rime-ice.zip in Copy Rime SharedSupport */ = {isa = PBXBuildFile; fileRef = C0D856CA2B026FDA003DB275 /* rime-ice.zip */; };
-		C0DA3F422AFB5AE9003E74DA /* RimeDeployBackgroundIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DA3F412AFB5AE9003E74DA /* RimeDeployBackgroundIntent.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -102,8 +100,7 @@
 		C00C26C52B069D6A00E92F89 /* libmarisa.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = libmarisa.xcframework; sourceTree = "<group>"; };
 		C00C26C62B069D6A00E92F89 /* librime.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; path = librime.xcframework; sourceTree = "<group>"; };
 		C00E006C2A1B6AFD00180F81 /* zh */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = zh; path = zh.lproj/InfoPlist.strings; sourceTree = "<group>"; };
-		C01396F92AB499CA0043674A /* RimeSyncIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RimeSyncIntent.swift; sourceTree = "<group>"; };
-		C01396FA2AB499CA0043674A /* RimeDeployIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RimeDeployIntent.swift; sourceTree = "<group>"; };
+		C0AI00002AB499CA0043674A /* AIChatIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIChatIntent.swift; sourceTree = "<group>"; };
 		C02435932A0490220080CFB4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C02435952A0490220080CFB4 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		C02435962A0490220080CFB4 /* Hamster.entitlements */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.entitlements; path = Hamster.entitlements; sourceTree = "<group>"; };
@@ -135,7 +132,6 @@
 		C0D672B329F1E066002D0439 /* SharedSupport.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = SharedSupport.zip; sourceTree = "<group>"; };
 		C0D856C92B0213E5003DB275 /* HamsterDebug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = HamsterDebug.entitlements; sourceTree = "<group>"; };
 		C0D856CA2B026FDA003DB275 /* rime-ice.zip */ = {isa = PBXFileReference; lastKnownFileType = archive.zip; path = "rime-ice.zip"; sourceTree = "<group>"; };
-		C0DA3F412AFB5AE9003E74DA /* RimeDeployBackgroundIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RimeDeployBackgroundIntent.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -211,9 +207,7 @@
 		C01396F82AB499CA0043674A /* Actions */ = {
 			isa = PBXGroup;
 			children = (
-				C01396F92AB499CA0043674A /* RimeSyncIntent.swift */,
-				C01396FA2AB499CA0043674A /* RimeDeployIntent.swift */,
-				C0DA3F412AFB5AE9003E74DA /* RimeDeployBackgroundIntent.swift */,
+				C0AI00002AB499CA0043674A /* AIChatIntent.swift */,
 			);
 			path = Actions;
 			sourceTree = "<group>";
@@ -442,9 +436,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C01396FC2AB499D80043674A /* RimeSyncIntent.swift in Sources */,
-				C01396FD2AB499D80043674A /* RimeDeployIntent.swift in Sources */,
-				C0DA3F422AFB5AE9003E74DA /* RimeDeployBackgroundIntent.swift in Sources */,
+				C0AI00012AB499D80043674A /* AIChatIntent.swift in Sources */,
 				C03319DC2A2DFEF700CE4950 /* SceneDelegate.swift in Sources */,
 				C03319DA2A2DFEBB00CE4950 /* AppDelegete.swift in Sources */,
 				C02C4D982AC105CA00FF91BA /* IntentProvider.swift in Sources */,
