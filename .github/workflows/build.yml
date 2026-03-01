@@ -158,7 +158,11 @@ jobs:
       - name: Clean DerivedData
         run: rm -rf ~/Library/Developer/Xcode/DerivedData/*
 
-      # ========== iOS Debug 构建（模拟器，无需签名） ==========
+      # ========== iOS Debug 构建（模拟器，ad-hoc 签名） ==========
+      # 必须使用 CODE_SIGN_IDENTITY="-"（ad-hoc）让 Xcode 在构建阶段处理签名和
+      # App Group 注册。若改用 CODE_SIGNING_ALLOWED=NO + 事后 codesign 补签，
+      # CoreSimulator 不会注册 App Group，导致 UserDefaults(suiteName:) 落盘到
+      # 各进程私有沙盒而非共享容器，两个进程无法共享数据。
       - name: Build Debug (Simulator)
         if: needs.prepare.outputs.need_debug == 'true'
         working-directory: ${{ env.HAMSTER_DIR }}
@@ -169,44 +173,9 @@ jobs:
             -configuration Debug \
             -sdk iphonesimulator \
             -derivedDataPath build-debug \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
-
-      # Debug 构建禁用了 CODE_SIGNING，entitlements 不会嵌入二进制，
-      # 导致 App Group containerURL 返回 nil。这里用 ad-hoc 重签注入 entitlements。
-      - name: Re-sign Debug build with entitlements
-        if: needs.prepare.outputs.need_debug == 'true'
-        working-directory: ${{ env.HAMSTER_DIR }}
-        run: |
-          APP_PATH=$(find build-debug -name "*.app" -not -path "*/PlugIns/*" -type d | head -1)
-          if [ -z "$APP_PATH" ]; then
-            echo "⚠️ 未找到 .app，跳过重签名"
-            exit 0
-          fi
-
-          # 先签键盘扩展（嵌套签名必须由内向外）
-          for APPEX in "$APP_PATH"/PlugIns/*.appex; do
-            [ -d "$APPEX" ] || continue
-            APPEX_NAME=$(basename "$APPEX" .appex)
-            APPEX_BINARY="$APPEX/$APPEX_NAME"
-            APPEX_ENTITLEMENTS="HamsterKeyboard/HamsterKeyboardDebug.entitlements"
-            if [ -f "$APPEX_BINARY" ] && [ -f "$APPEX_ENTITLEMENTS" ]; then
-              codesign --force --sign - --entitlements "$APPEX_ENTITLEMENTS" "$APPEX"
-              echo "✅ 已重签键盘扩展: $APPEX_NAME"
-            fi
-          done
-
-          # 再签主 App
-          MAIN_ENTITLEMENTS="Hamster/HamsterDebug.entitlements"
-          if [ -f "$MAIN_ENTITLEMENTS" ]; then
-            codesign --force --sign - --entitlements "$MAIN_ENTITLEMENTS" "$APP_PATH"
-            echo "✅ 已重签主 App（含 App Group entitlements）"
-          fi
-
-          # 验证 entitlements 已嵌入
-          echo "── 验证嵌入的 entitlements ──"
-          codesign -d --entitlements - "$APP_PATH" 2>&1 | head -20
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGNING_REQUIRED=YES
 
       - name: Package Debug .app
         if: needs.prepare.outputs.need_debug == 'true'
