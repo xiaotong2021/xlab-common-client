@@ -11,7 +11,11 @@ struct IntentProvider: AppShortcutsProvider {
     return [
       AppShortcut(
         intent: AIChatIntent(),
-        phrases: ["AI 知识库问答", "向 AI 提问", "AI 提问"]
+        phrases: [
+          "用 \(.applicationName) AI 知识库问答",
+          "用 \(.applicationName) 向 AI 提问",
+          "用 \(.applicationName) AI 提问",
+        ]
       ),
     ]
   }
