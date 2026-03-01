@@ -12,7 +12,7 @@ on:
 # 全局常量
 # ──────────────────────────────────────────────────────────────────────────────
 env:
-  XCODE_VERSION: "15.0.1"
+  XCODE_VERSION: "16.2"
   PROJECT:       "Hamster.xcodeproj"
   SCHEME:        "Hamster"
   HAMSTER_DIR:   "Hamster"

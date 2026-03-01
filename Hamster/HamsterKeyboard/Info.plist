@@ -51,10 +51,5 @@
 	<string>键盘需要网络访问权限来提供 AI 查询功能</string>
 	<key>NSNetworkVolumesUsageDescription</key>
 	<string>键盘需要网络访问权限来连接 AI 服务</string>
-	<key>UIBackgroundModes</key>
-	<array>
-		<string>background-fetch</string>
-		<string>background-processing</string>
-	</array>
 </dict>
 </plist>
