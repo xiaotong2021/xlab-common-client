@@ -202,6 +202,16 @@ public class SettingsViewModel: ObservableObject {
           }
         ),
       ]),
+      .init(title: "知识库", items: [
+        .init(
+          icon: UIImage(systemName: "books.vertical")!,
+          text: "知识库管理",
+          accessoryType: .disclosureIndicator,
+          navigationAction: { [unowned self] in
+            self.mainViewModel.subViewSubject.send(.knowledgeBase)
+          }
+        ),
+      ]),
       .init(title: "关于", items: [
         .init(
           icon: UIImage(systemName: "info.circle")!,

@@ -1400,7 +1400,7 @@ import commands from "./commands";      // 命令API
    - Bundle Identifier: `com.xlab.aiime`
    - Deployment Target: iOS 15.0+
    - App Groups: `group.com.xlab.aiime`
-   - iCloud Container: `iCloud.com.xlab.aiimeapp`
+   - iCloud Container: `iCloud.com.xlab.aiime`
 
 2. **HamsterKeyboard Target（键盘扩展）**：
    - Bundle Identifier: `com.xlab.aiime.HamsterKeyboard`

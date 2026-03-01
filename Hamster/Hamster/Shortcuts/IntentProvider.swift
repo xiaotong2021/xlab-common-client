@@ -2,8 +2,6 @@
 //  IntentProvider.swift
 //  Hamster
 //
-//  Created by morse on 2023/9/25.
-//
 
 import AppIntents
 
@@ -11,8 +9,10 @@ import AppIntents
 struct IntentProvider: AppShortcutsProvider {
   static var appShortcuts: [AppShortcut] {
     return [
-      AppShortcut(intent: RimeSyncIntent(), phrases: ["RIME Sync", "RIME 同步"]),
-      AppShortcut(intent: RimeDeployIntent(), phrases: ["RIME Deploy", "RIME 重新部署"]),
+      AppShortcut(
+        intent: AIChatIntent(),
+        phrases: ["AI 知识库问答", "向 AI 提问", "AI 提问"]
+      ),
     ]
   }
 }
