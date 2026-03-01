@@ -35,8 +35,11 @@ class AIQueryView: NibLessView {
   /// 当前查询任务
   private var currentTask: URLSessionDataTask?
 
-  /// 当前响应内容
+  /// 当前响应内容（含引用文档，用于展示）
   private var currentResponse: String = ""
+
+  /// 当前响应正文（不含引用文档，用于插入）
+  private var currentBodyText: String = ""
 
   /// 当前会话ID
   private var currentSessionId: String = ""
@@ -392,15 +395,15 @@ class AIQueryView: NibLessView {
   }
 
   @objc private func insertButtonTapped() {
-    Logger.statistics.info("AIQueryView: 用户点击插入按钮，响应内容长度: \(self.currentResponse.count)")
+    Logger.statistics.info("AIQueryView: 用户点击插入按钮，正文长度: \(self.currentBodyText.count)")
 
-    guard !currentResponse.isEmpty else {
-      Logger.statistics.warning("AIQueryView: 响应内容为空，无法插入")
+    guard !currentBodyText.isEmpty else {
+      Logger.statistics.warning("AIQueryView: 响应正文为空，无法插入")
       return
     }
 
-    // 通过回调插入文本
-    onInsertText?(currentResponse)
+    // 只插入正文，不包含引用文档
+    onInsertText?(currentBodyText)
   }
 
   // MARK: - Private Methods
@@ -579,11 +582,11 @@ class AIQueryView: NibLessView {
           // 解析响应文本和引用文档（参考 WebViewApp ChatResponse 的处理方式）
           let (body, refers) = Self.extractTextAndRefers(from: jsonObject, rawData: data)
           Logger.statistics.info("AIQueryView: 解析完成，正文长度: \(body.count)，引用数量: \(refers.count)")
-          showResponse(Self.formatResponse(body: body, refers: refers))
+          showResponse(body: body, refers: refers)
         } else {
           let responseText = String(data: data, encoding: .utf8) ?? "无法解析响应"
           Logger.statistics.info("AIQueryView: 非JSON响应，直接显示文本，长度: \(responseText.count)")
-          showResponse(responseText)
+          showResponse(body: responseText, refers: [])
         }
       } catch {
         Logger.statistics.error("AIQueryView: JSON解析失败: \(error.localizedDescription)")
@@ -700,12 +703,15 @@ class AIQueryView: NibLessView {
     return "\(body)\n\n\(refLine)"
   }
 
-  private func showResponse(_ text: String) {
-    Logger.statistics.info("AIQueryView: 显示响应内容，长度: \(text.count)")
+  /// 展示响应：正文用于插入，正文+引用用于界面展示
+  private func showResponse(body: String, refers: [String]) {
+    let displayText = Self.formatResponse(body: body, refers: refers)
+    Logger.statistics.info("AIQueryView: 显示响应内容，正文长度: \(body.count)，展示长度: \(displayText.count)")
 
-    currentResponse = text
+    currentBodyText = body
+    currentResponse = displayText
 
-    responseTextView.text = text
+    responseTextView.text = displayText
     responseTextView.isHidden = false
     regenerateButton.isHidden = false
     insertButton.isHidden = false
@@ -714,6 +720,7 @@ class AIQueryView: NibLessView {
   private func showError(_ message: String) {
     Logger.statistics.error("AIQueryView: 显示错误信息: \(message)")
 
+    currentBodyText = ""
     currentResponse = ""
     responseTextView.text = "错误: \(message)"
     responseTextView.isHidden = false
