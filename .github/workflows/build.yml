@@ -12,7 +12,7 @@ on:
 # 全局常量
 # ──────────────────────────────────────────────────────────────────────────────
 env:
-  XCODE_VERSION: "16.2"
+  XCODE_VERSION: "26.0"
   PROJECT:       "Hamster.xcodeproj"
   SCHEME:        "Hamster"
   HAMSTER_DIR:   "Hamster"
@@ -91,7 +91,7 @@ jobs:
   build:
     name: Build Hamster iOS App
     needs: prepare
-    runs-on: macos-14
+    runs-on: macos-15
     permissions:
       contents: write
 
@@ -427,21 +427,51 @@ jobs:
           API_KEY_ID:    ${{ secrets.APP_STORE_API_KEY_ID }}
           API_ISSUER_ID: ${{ secrets.APP_STORE_API_ISSUER_ID }}
         run: |
-          IPA_PATH=$(find Hamster-Release -name "*.ipa" -type f | head -1)
-          if [ -z "$IPA_PATH" ]; then
-            echo "❌ 未找到 IPA，跳过 TestFlight 上传"
+          KEY_PATH="$HOME/.appstoreconnect/private_keys/AuthKey_${API_KEY_ID}.p8"
+          if [ ! -f "$KEY_PATH" ]; then
+            echo "❌ 未找到 API 密钥文件: $KEY_PATH"
             exit 1
           fi
-          echo "📤 上传 IPA: $IPA_PATH"
 
-          xcrun altool --upload-app \
-            --file      "$IPA_PATH" \
-            --type      ios \
-            --apiKey    "$API_KEY_ID" \
-            --apiIssuer "$API_ISSUER_ID" \
-            --verbose
+          # xcrun altool 已在 Xcode 26 中移除，改用 xcodebuild -exportArchive destination:upload
+          cat > uploadOptions.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>${EXPORT_METHOD}</string>
+              <key>teamID</key>
+              <string>${TEAM_ID}</string>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>signingCertificate</key>
+              <string>Apple Distribution</string>
+              <key>destination</key>
+              <string>upload</string>
+              <key>provisioningProfiles</key>
+              <dict>
+                  <key>${BUNDLE_ID}</key>
+                  <string>${MAIN_PROFILE_NAME}</string>
+              </dict>
+          </dict>
+          </plist>
+          EOF
 
-          echo "✅ 已上传到 TestFlight: $(basename $IPA_PATH)"
+          /usr/libexec/PlistBuddy -c \
+            "Add :provisioningProfiles:${BUNDLE_ID_KEYBOARD} string ${KEYBOARD_PROFILE_NAME}" \
+            uploadOptions.plist
+
+          echo "📤 正在上传到 TestFlight..."
+          xcodebuild -exportArchive \
+            -archivePath Hamster.xcarchive \
+            -exportPath  Hamster-Upload \
+            -exportOptionsPlist uploadOptions.plist \
+            -authenticationKeyPath   "$KEY_PATH" \
+            -authenticationKeyID     "$API_KEY_ID" \
+            -authenticationKeyIssuerID "$API_ISSUER_ID"
+
+          echo "✅ 已上传到 TestFlight"
 
       # ========== 准备发布产物 ==========
       - name: Prepare release artifacts
