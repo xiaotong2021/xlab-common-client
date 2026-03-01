@@ -31,7 +31,6 @@ jobs:
       cfg_bundle_id: ${{ steps.config.outputs.cfg_bundle_id }}
       cfg_team_id: ${{ steps.config.outputs.cfg_team_id }}
       cfg_export_method: ${{ steps.config.outputs.cfg_export_method }}
-      enable_app_store_connect: ${{ steps.config.outputs.enable_app_store_connect }}
 
     steps:
       - name: Checkout code
@@ -51,15 +50,12 @@ jobs:
           CFG_BUNDLE_ID=$(grep '^appId=' $CONFIG_FILE | cut -d'=' -f2)
           CFG_TEAM_ID=$(grep '^iosTeamId=' $CONFIG_FILE | cut -d'=' -f2)
           CFG_EXPORT_METHOD=$(grep '^iosExportMethod=' $CONFIG_FILE | cut -d'=' -f2)
-          ENABLE_ASC=$(grep '^enableAppStoreConnect=' $CONFIG_FILE | cut -d'=' -f2 | tr '[:upper:]' '[:lower:]')
-
-          echo "need_debug=${NEED_DEBUG:-false}"                           >> $GITHUB_OUTPUT
-          echo "app_version=$APP_VERSION"                                  >> $GITHUB_OUTPUT
-          echo "app_display_name=$APP_DISPLAY_NAME"                        >> $GITHUB_OUTPUT
-          echo "cfg_bundle_id=$CFG_BUNDLE_ID"                              >> $GITHUB_OUTPUT
-          echo "cfg_team_id=$CFG_TEAM_ID"                                  >> $GITHUB_OUTPUT
-          echo "cfg_export_method=${CFG_EXPORT_METHOD:-app-store}"         >> $GITHUB_OUTPUT
-          echo "enable_app_store_connect=${ENABLE_ASC:-false}"             >> $GITHUB_OUTPUT
+          echo "need_debug=${NEED_DEBUG:-false}"             >> $GITHUB_OUTPUT
+          echo "app_version=$APP_VERSION"                    >> $GITHUB_OUTPUT
+          echo "app_display_name=$APP_DISPLAY_NAME"          >> $GITHUB_OUTPUT
+          echo "cfg_bundle_id=$CFG_BUNDLE_ID"                >> $GITHUB_OUTPUT
+          echo "cfg_team_id=$CFG_TEAM_ID"                    >> $GITHUB_OUTPUT
+          echo "cfg_export_method=${CFG_EXPORT_METHOD:-app-store}" >> $GITHUB_OUTPUT
 
           echo "Need Debug: ${NEED_DEBUG:-false}"
           echo "App Version: $APP_VERSION"
@@ -67,7 +63,6 @@ jobs:
           echo "Bundle ID (cfg): $CFG_BUNDLE_ID"
           echo "Team ID (cfg): $CFG_TEAM_ID"
           echo "Export Method (cfg): ${CFG_EXPORT_METHOD:-app-store}"
-          echo "Enable App Store Connect: ${ENABLE_ASC:-false}"
 
   # ============================================================================
   # Job 2 ── iOS 构建（Debug + Release）+ GitHub Release
@@ -88,7 +83,7 @@ jobs:
   #    IOS_TEAM_ID              → Apple 开发者 Team ID，回退: iosTeamId
   #    IOS_EXPORT_METHOD        → 导出方式，回退: iosExportMethod
   #
-  #  App Store Connect 上传（enableAppStoreConnect=true 且以下三个 Secret 均已配置时自动上传）:
+  #  App Store Connect 上传（必填，每次 Release 构建后自动上传到 TestFlight）:
   #    APP_STORE_API_KEY_BASE64 → App Store Connect API 私钥 .p8 文件的 base64 编码
   #    APP_STORE_API_KEY_ID     → API Key ID（格式：XXXXXXXXXX）
   #    APP_STORE_API_ISSUER_ID  → Issuer ID（格式：xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx）
@@ -415,14 +410,7 @@ jobs:
           echo "✅ App Group entitlements 验证通过"
 
       # ========== 上传到 App Store Connect / TestFlight ==========
-      # 触发条件：app.cfg 的 enableAppStoreConnect=true
-      #           且三个 API Key Secret 均已配置
       - name: Setup App Store Connect API Key
-        if: |
-          needs.prepare.outputs.enable_app_store_connect == 'true' &&
-          secrets.APP_STORE_API_KEY_BASE64 != '' &&
-          secrets.APP_STORE_API_KEY_ID != '' &&
-          secrets.APP_STORE_API_ISSUER_ID != ''
         env:
           API_KEY_BASE64: ${{ secrets.APP_STORE_API_KEY_BASE64 }}
           API_KEY_ID:     ${{ secrets.APP_STORE_API_KEY_ID }}
@@ -434,11 +422,6 @@ jobs:
           echo "✅ App Store Connect API 密钥已准备: AuthKey_${API_KEY_ID}.p8"
 
       - name: Upload to TestFlight
-        if: |
-          needs.prepare.outputs.enable_app_store_connect == 'true' &&
-          secrets.APP_STORE_API_KEY_BASE64 != '' &&
-          secrets.APP_STORE_API_KEY_ID != '' &&
-          secrets.APP_STORE_API_ISSUER_ID != ''
         working-directory: ${{ env.HAMSTER_DIR }}
         env:
           API_KEY_ID:    ${{ secrets.APP_STORE_API_KEY_ID }}
