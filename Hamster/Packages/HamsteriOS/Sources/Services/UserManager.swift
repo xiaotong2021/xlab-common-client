@@ -87,7 +87,11 @@ public class UserManager: ObservableObject {
       UserDefaults.standard.synchronize()
       sharedDefaults.synchronize()
 
-      // 验证写入结果（warning 级别在 Console 默认可见）
+      // 验证写入结果，并打印容器路径（与键盘扩展的路径对比，UUID 必须相同才能共享数据）
+      let containerURL = FileManager.default.containerURL(
+        forSecurityApplicationGroupIdentifier: HamsterConstants.appGroupName)
+      Logger.statistics.warning("UserManager: App Group 容器路径: \(containerURL?.path ?? "nil（缺少 entitlement！）")")
+
       if sharedDefaults.data(forKey: sharedUserDefaultsKey) != nil {
         Logger.statistics.warning("UserManager: ✅ AppGroup 写入验证成功 - 用户名: \(user.username)")
       } else {
